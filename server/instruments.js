@@ -1,3 +1,5 @@
+import { gunzipSync } from "node:zlib";
+
 const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL","HINDUNILVR","BAJFINANCE","HCLTECH","WIPRO","TECHM","ULTRACEMCO","ASIANPAINT","TITAN","COALINDIA","ONGC"];
 
 export async function loadAngelOneInstruments(url="https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"){
@@ -14,8 +16,8 @@ export async function loadAngelOneInstruments(url="https://margincalculator.ange
 
 export async function loadUpstoxInstruments(url="https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"){
   const r=await fetch(url); if(!r.ok) throw new Error("Upstox instrument master HTTP "+r.status);
-  const text=await r.text();
-  const rows=JSON.parse(text);
+  const compressed=Buffer.from(await r.arrayBuffer());
+  const rows=JSON.parse(gunzipSync(compressed).toString("utf8"));
   const map=new Map();
   for(const x of rows){
     if(x.segment!=="NSE_EQ" || x.instrument_type!=="EQ") continue;
