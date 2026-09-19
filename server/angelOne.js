@@ -18,9 +18,18 @@ export function createAngelOneStream({ clientCode, feedToken, apiKey, onTick, on
   ws.on("error", err => onStatus?.("error:" + err.message));
 
   ws.on("message", data => {
-    // Smart Stream returns binary packets. Decoding is isolated here so the
-    // scanner engine remains broker-agnostic.
-    onTick?.({ broker: "angelOne", raw: data });
+    const b = Buffer.from(data);
+    if (b.length < 51) return;
+    const mode = b.readInt8(0);
+    const exchangeType = b.readInt8(1);
+    const token = b.subarray(2, 27).toString("utf8").replace(/\0/g, "");
+    const sequence = b.readBigInt64LE(27).toString();
+    const exchangeTimestamp = Number(b.readBigInt64LE(35));
+    const ltp = b.readInt32LE(43) / 100;
+    onTick?.({
+      broker: "angelOne", raw: data, mode, exchangeType, token, sequence,
+      timestamp: exchangeTimestamp, ltp
+    });
   });
 
   return {
