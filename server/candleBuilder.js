@@ -67,6 +67,6 @@ export class CandleBuilder {
   }
 
   snapshot(){
-    return [...this.history, ...[...this.buckets.values()].map(c=>({...c,complete:false,timestamp:c.start})].sort((a,b)=>a.start-b.start);
+    return [...this.history, ...[...this.buckets.values()].map(c=>({...c,complete:false,timestamp:c.start}))].sort((a,b)=>a.start-b.start);
   }
 }
