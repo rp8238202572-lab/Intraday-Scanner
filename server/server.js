@@ -17,6 +17,41 @@ app.get("/health", (_req,res) => res.json({
   trading:{enabled:false}
 }));
 
+const streamState={angelOne:"disabled",upstox:"disabled"};
+const activeStreams={angelOne:null,upstox:null};
+
+async function startConfiguredStreams(){
+  if(process.env.UPSTOX_ACCESS_TOKEN){
+    try{
+      const {createUpstoxStream}=await import("./upstox.js");
+      const {loadUpstoxInstruments}=await import("./instruments.js");
+      const instruments=await loadUpstoxInstruments();
+      activeStreams.upstox=await createUpstoxStream({
+        accessToken:process.env.UPSTOX_ACCESS_TOKEN,
+        onStatus:s=>{streamState.upstox=s; console.log("Upstox:",s);},
+        onTick:pushLiveTick
+      });
+      const keys=Object.values(instruments);
+      activeStreams.upstox.subscribe({instrumentKeys:keys,mode:"ltpc"});
+    }catch(e){streamState.upstox="error:"+e.message;console.error("Upstox stream:",e.message);}
+  }
+  if(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN){
+    try{
+      const {createAngelOneStream}=await import("./angelOne.js");
+      const {loadAngelOneInstruments}=await import("./instruments.js");
+      const instruments=await loadAngelOneInstruments();
+      activeStreams.angelOne=await createAngelOneStream({
+        apiKey:process.env.ANGEL_API_KEY,
+        clientCode:process.env.ANGEL_CLIENT_CODE,
+        feedToken:process.env.ANGEL_FEED_TOKEN,
+        onStatus:s=>{streamState.angelOne=s; console.log("Angel One:",s);},
+        onTick:pushLiveTick
+      });
+      activeStreams.angelOne.subscribe({tokens:Object.values(instruments).map(x=>x.token),mode:1});
+    }catch(e){streamState.angelOne="error:"+e.message;console.error("Angel One stream:",e.message);}
+  }
+}
+
 const candleBuilders=new Map();
 function candleKey(t){ return String(t?.instrumentKey ?? t?.symbol ?? t?.token ?? "unknown"); }
 
@@ -30,6 +65,8 @@ function pushLiveTick(rawTick){
   if(!tick) return null;
   return getBuilder(candleKey(tick)).update(tick);
 }
+
+app.get("/api/streams",(_req,res)=>res.json({ok:true,streams:streamState,live:Object.values(activeStreams).some(Boolean)}));
 
 app.get("/api/candles",(_req,res)=>{
   res.json({ok:true,interval:"5m",candles:[...candleBuilders.values()].flatMap(x=>x.snapshot())});
@@ -79,4 +116,7 @@ app.get("/api/config",(_req,res)=>res.json({
   trading:{enabled:false},interval:"5m"
 }));
 
-app.listen(port,()=>console.log("Intraday Scanner broker gateway listening on "+port));
+app.listen(port,async()=>{
+  console.log("Intraday Scanner broker gateway listening on "+port);
+  await startConfiguredStreams();
+});
