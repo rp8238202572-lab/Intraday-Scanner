@@ -21,7 +21,12 @@ export async function createUpstoxStream({ accessToken, authorizeUrl, onTick, on
     followRedirects: true
   });
 
-  ws.on("open", () => onStatus?.("connected"));
+  ws.on("open", () => {
+    onStatus?.("connected");
+    // V3 subscription requests are binary protobuf messages. The actual
+    // instrument keys/mode are supplied by the caller.
+    onStatus?.("ready_for_subscription");
+  });
   ws.on("close", () => onStatus?.("closed"));
   ws.on("error", err => onStatus?.("error:" + err.message));
   ws.on("message", data => {
