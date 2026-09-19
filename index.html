@@ -24,7 +24,7 @@
 <div><label>Max trades / day</label><select id="maxTrades"><option>1</option><option selected>2</option><option>3</option></select></div>
 <div><label>Minimum setup score</label><select id="minScore"><option value="60">60</option><option value="65" selected>65</option><option value="70">70</option><option value="75">75</option></select></div>
 </div>
-<button id="scan" style="margin-top:10px" onclick="scan()">🔎 Scan market</button>
+<button id="scan" style="margin-top:10px" onclick="scan()">🔎 Scan market</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px;color:#cbd5e1;font-size:11px"><input id="autoRefresh" type="checkbox" style="width:auto"> Auto refresh every 5 minutes while market is open</label>
 </div>
 <div id="status" class="status">Ready. Tap Scan market. The scanner checks a focused NSE watchlist and returns only setups that pass the rules.</div>
 <div id="results"></div><div id="education"></div>
@@ -36,67 +36,106 @@
 <div class="row"><span>Risk</span><span>ATR-based stop + position sizing</span></div>
 <div class="tiny" style="margin-top:8px">A “BUY SETUP” means the rules currently align; it is not a guarantee that the trade will make money. If no stock passes the threshold, the app shows NO TRADE.</div>
 </div>
-<div class="card tiny">Data source note: this prototype uses a browser CORS proxy to read Yahoo Finance chart data. Yahoo’s chart endpoint is unofficial and browser-direct calls are commonly blocked by CORS, so this should be treated as a prototype data layer rather than an exchange-grade feed.</div>
+<div class="card tiny"><b>Data source & safety:</b> The current web build reads Yahoo Finance chart data through a browser CORS proxy. This is not an exchange-grade real-time feed. The scanner now fails closed when market data is stale/unavailable instead of pretending it is live. For actual live trading, we will replace this layer with an authorized broker/exchange data API.</div>
 </div>
 </div>
 <script>
-const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL"];
+const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL","HINDUNILVR","BAJFINANCE","HCLTECH","WIPRO","TECHM","ULTRACEMCO","ASIANPAINT","TITAN","COALINDIA","ONGC"];
 const proxy="https://corsproxy.io/?url=";
 const yf=s=>proxy+encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/"+s+".NS?range=1d&interval=5m&includePrePost=false");
+const NSE_HOLIDAYS_2026=new Set(["2026-01-15","2026-01-26","2026-02-19","2026-03-03","2026-03-19","2026-03-26","2026-03-31","2026-04-01","2026-04-03","2026-04-14","2026-05-01","2026-05-28","2026-06-26","2026-08-26","2026-09-14","2026-10-02","2026-10-20","2026-11-08","2026-11-10","2026-11-24","2026-12-25"]);
+let refreshTimer=null,lastScanAt=0;
 
 function ema(a,n){if(a.length<n)return null;let k=2/(n+1),e=a.slice(0,n).reduce((x,y)=>x+y,0)/n;for(let i=n;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
 function rsi(a,n=14){if(a.length<=n)return 50;let g=0,l=0;for(let i=1;i<=n;i++){let d=a[i]-a[i-1];g+=Math.max(d,0);l+=Math.max(-d,0)}let ag=g/n,al=l/n;for(let i=n+1;i<a.length;i++){let d=a[i]-a[i-1];ag=(ag*(n-1)+Math.max(d,0))/n;al=(al*(n-1)+Math.max(-d,0))/n}return al===0?100:100-(100/(1+ag/al))}
 function atr(h,l,c,n=14){if(c.length<=n)return 0;let tr=[];for(let i=1;i<c.length;i++)tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));return tr.slice(-n).reduce((a,b)=>a+b,0)/n}
 function vwap(h,l,c,v){let pv=0,vol=0;for(let i=0;i<c.length;i++){let tp=(h[i]+l[i]+c[i])/3;pv+=tp*(v[i]||0);vol+=v[i]||0}return vol?pv/vol:c.at(-1)}
 function round2(x){return Math.round(x*100)/100}
+function money(x){return "₹"+round2(x).toLocaleString("en-IN")}
+function nowIST(){return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}))}
+function dateKey(d){return d.toISOString().slice(0,10)}
+function marketInfo(){
+ const d=nowIST(),day=d.getDay(),m=d.getHours()*60+d.getMinutes(),holiday=NSE_HOLIDAYS_2026.has(dateKey(d));
+ const open=!holiday&&day>=1&&day<=5&&m>=555&&m<930;
+ return {d,open,holiday};
+}
+function marketStatus(){
+ const x=marketInfo(),d=x.d;
+ const badge=document.getElementById("marketBadge");
+ badge.textContent=x.holiday?"NSE HOLIDAY":x.open?"MARKET OPEN":"MARKET CLOSED";
+ badge.className="pill "+(x.open?"open":"closed");
+ document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30";
+}
+function setStatus(t){document.getElementById("status").textContent=t}
+function candleAgeMinutes(ts){
+ if(!ts)return Infinity;
+ return Math.max(0,(Date.now()-Number(ts)*1000)/60000);
+}
 function setup(symbol,raw,capital,riskPct,minScore){
- const q=raw.chart.result[0], z=q.indicators.quote[0];
- const c=z.close.map(Number),h=z.high.map(Number),l=z.low.map(Number),v=z.volume.map(Number);
- const clean=c.map((x,i)=>({c:x,h:h[i],l:l[i],v:v[i]})).filter(x=>Number.isFinite(x.c)&&Number.isFinite(x.h)&&Number.isFinite(x.l));
- if(clean.length<30) throw Error("Not enough candles");
+ const result=raw?.chart?.result?.[0];
+ if(!result)throw Error("No chart data");
+ const z=result.indicators?.quote?.[0],ts=(result.timestamp||[]).at(-1);
+ if(!z||!ts)throw Error("No candles");
+ const c=(z.close||[]).map(Number),h=(z.high||[]).map(Number),l=(z.low||[]).map(Number),v=(z.volume||[]).map(Number);
+ const clean=c.map((x,i)=>({c:x,h:h[i],l:l[i],v:v[i]})).filter(x=>Number.isFinite(x.c)&&Number.isFinite(x.h)&&Number.isFinite(x.l)&&Number.isFinite(x.v));
+ if(clean.length<50)throw Error("Not enough 5m candles");
  const C=clean.map(x=>x.c),H=clean.map(x=>x.h),L=clean.map(x=>x.l),V=clean.map(x=>x.v);
- const price=C.at(-1), e9=ema(C,9),e21=ema(C,21),rv=rsi(C),vw=vwap(H,L,C,V),a=atr(H,L,C);
- const last20=C.slice(-21,-1),high20=Math.max(...last20),low20=Math.min(...last20);
+ const price=C.at(-1),e9=ema(C,9),e21=ema(C,21),rv=rsi(C),vw=vwap(H,L,C,V),a=atr(H,L,C);
+ if(!Number.isFinite(price)||!Number.isFinite(a)||a<=0)throw Error("Invalid indicators");
+ const prev=C.at(-2),last20=C.slice(-21,-1),high20=Math.max(...last20),low20=Math.min(...last20);
  const avgVol=V.slice(-21,-1).reduce((a,b)=>a+b,0)/20,volRatio=avgVol?V.at(-1)/avgVol:0;
- const bullish=price>e9&&e9>e21&&price>vw;
- const bearish=price<e9&&e9<e21&&price<vw;
- const breakout=price>high20;
- const breakdown=price<low20;
+ const candleBull=price>prev,candleBear=price<prev;
+ const breakout=price>high20,breakdown=price<low20;
  const momentumLong=rv>=55&&rv<=72,momentumShort=rv<=45&&rv>=28;
+ const emaSlope=e9-ema(C.slice(0,-1),9);
  let long=0,short=0;
- if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(momentumLong)long+=15;if(volRatio>=1.2)long+=15;if(breakout)long+=10;
- if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(momentumShort)short+=15;if(volRatio>=1.2)short+=15;if(breakdown)short+=10;
+ if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(momentumLong)long+=15;if(volRatio>=1.2)long+=10;if(breakout)long+=10;if(emaSlope>0&&candleBull)long+=5;
+ if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(momentumShort)short+=15;if(volRatio>=1.2)short+=10;if(breakdown)short+=10;if(emaSlope<0&&candleBear)short+=5;
  const side=long>=short?"LONG":"SHORT",score=Math.max(long,short);
- const entry=price, stop=side==="LONG"?price-Math.max(a*1.1,price*.004):price+Math.max(a*1.1,price*.004);
- const riskPerShare=Math.abs(entry-stop);
- const riskMoney=Math.max(1,capital*riskPct/100);
- const qty=Math.max(0,Math.floor(riskMoney/riskPerShare));
- const affordable=Math.max(0,Math.floor(capital/entry));
- const quantity=Math.min(qty,affordable);
+ const entry=price,buffer=Math.max(a*1.1,price*.004),stop=side==="LONG"?price-buffer:price+buffer;
+ const riskPerShare=Math.abs(entry-stop),riskMoney=Math.max(0,capital*riskPct/100);
+ const riskQty=Math.floor(riskMoney/riskPerShare),affordable=Math.floor(capital/entry),quantity=Math.max(0,Math.min(riskQty,affordable));
  const target=side==="LONG"?entry+riskPerShare*1.8:entry-riskPerShare*1.8;
  const reason=side==="LONG"
-  ? [price>e21?"above EMA21":"below EMA21",e9>e21?"EMA9>EMA21":"EMA9<EMA21",price>vw?"above VWAP":"below VWAP",momentumLong?"RSI supportive":"RSI weak",volRatio>=1.2?"volume confirmed":"volume not confirmed",breakout?"20-candle breakout":"no breakout"].join(" • ")
-  : [price<e21?"below EMA21":"above EMA21",e9<e21?"EMA9<EMA21":"EMA9>EMA21",price<vw?"below VWAP":"above VWAP",momentumShort?"RSI supportive":"RSI strong",volRatio>=1.2?"volume confirmed":"volume not confirmed",breakdown?"20-candle breakdown":"no breakdown"].join(" • ");
- return {symbol,price,side,score,entry,stop,target,quantity,rsi:rv,volRatio,vwap:vw,atr:a,reason,affordable};
+  ? [price>e21?"above EMA21":"below EMA21",e9>e21?"EMA9>EMA21":"EMA9<EMA21",price>vw?"above VWAP":"below VWAP",momentumLong?"RSI 55–72":"RSI weak",volRatio>=1.2?"volume ≥1.2× avg":"volume weak",breakout?"20-candle breakout":"no breakout"].join(" • ")
+  : [price<e21?"below EMA21":"above EMA21",e9<e21?"EMA9<EMA21":"EMA9>EMA21",price<vw?"below VWAP":"above VWAP",momentumShort?"RSI 28–45":"RSI strong",volRatio>=1.2?"volume ≥1.2× avg":"volume weak",breakdown?"20-candle breakdown":"no breakdown"].join(" • ");
+ return {symbol,price,side,score,entry,stop,target,quantity,rsi:rv,volRatio,vwap:vw,atr:a,reason,affordable,ts,age:candleAgeMinutes(ts),minScore};
 }
-async function getData(symbol){const r=await fetch(yf(symbol),{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}
+async function getData(symbol){
+ const r=await fetch(yf(symbol),{cache:"no-store"});
+ if(!r.ok)throw Error("HTTP "+r.status);
+ return r.json();
+}
 async function scan(){
- const btn=document.getElementById("scan"),status=document.getElementById("status"),out=document.getElementById("results");
- const capital=Number(document.getElementById("capital").value)||2000,risk=Number(document.getElementById("risk").value)||1,minScore=Number(document.getElementById("minScore").value)||65,maxTrades=Number(document.getElementById("maxTrades").value)||2;
- btn.disabled=true;out.innerHTML="";let done=0,found=[],errors=0;
- status.textContent="Scanning "+WATCH.length+" NSE stocks…";
- const results=await Promise.all(WATCH.map(async s=>{try{return setup(s,await getData(s),capital,risk,minScore)}catch(e){errors++;return null}finally{done++;status.textContent="Scanning… "+done+"/"+WATCH.length}})));
- found=results.filter(Boolean).filter(x=>x.score>=minScore&&x.quantity>0).sort((a,b)=>b.score-a.score).slice(0,maxTrades);
- if(!found.length){out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">No setup passed the selected score/risk rules with the entered capital. This is a valid result—do not force a trade.</div></div>';status.textContent="Scan complete • "+errors+" symbols unavailable";btn.disabled=false;return}
- out.innerHTML=found.map(x=>card(x,capital,risk)).join("");
- status.textContent="Scan complete • "+found.length+" setup(s) passed • "+errors+" symbols unavailable";
+ const btn=document.getElementById("scan"),out=document.getElementById("results");
+ const mi=marketInfo();
+ if(!mi.open){out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">MARKET CLOSED</span></div><div class="reason">'+(mi.holiday?"NSE holiday today.":"The regular NSE equity session is closed.")+' Scanner will only produce live setups during the regular session.</div></div>';setStatus("Scan blocked safely • market is closed");return}
+ const capital=Number(document.getElementById("capital").value),risk=Number(document.getElementById("risk").value),minScore=Number(document.getElementById("minScore").value),maxTrades=Number(document.getElementById("maxTrades").value);
+ if(!Number.isFinite(capital)||capital<500||!Number.isFinite(risk)||risk<=0||risk>5){setStatus("Enter valid capital and risk (0.25%–5%).");return}
+ btn.disabled=true;out.innerHTML="";let done=0,errors=0,stale=0;
+ setStatus("Scanning "+WATCH.length+" NSE stocks…");
+ const results=await Promise.all(WATCH.map(async s=>{try{return setup(s,await getData(s),capital,risk,minScore)}catch(e){errors++;return null}finally{done++;setStatus("Scanning… "+done+"/"+WATCH.length)}})));
+ const usable=results.filter(Boolean).filter(x=>{if(x.age>12){stale++;return false}return x.quantity>0&&x.score>=minScore});
+ const found=usable.sort((a,b)=>b.score-a.score).slice(0,maxTrades);
+ if(!found.length){
+   out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">No stock passed every safety gate: minimum score, affordable quantity and fresh 5-minute data. Do not force a trade.</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • stale data rejected: '+stale+'</div></div>';
+ }else out.innerHTML=found.map(x=>card(x,capital,risk)).join("");
+ lastScanAt=Date.now();
+ setStatus("Scan complete • "+found.length+" setup(s) passed • "+errors+" unavailable • "+stale+" stale rejected");
  btn.disabled=false;
 }
 function card(x,capital,risk){
- const riskAmt=round2(Math.abs(x.entry-x.stop)*x.quantity),reward=round2(Math.abs(x.target-x.entry)*x.quantity);
- return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'.NS</div><div class="tiny">₹'+round2(x.price)+'</div></div><div class="badge buy">'+x.side+' • '+x.score+'/100</div></div>'+
- '<div class="meta"><div><small>ENTRY</small><b>₹'+round2(x.entry)+'</b></div><div><small>STOP</small><b>₹'+round2(x.stop)+'</b></div><div><small>TARGET</small><b>₹'+round2(x.target)+'</b></div><div><small>QTY</small><b>'+x.quantity+'</b></div><div><small>RISK</small><b>₹'+riskAmt+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(x.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+x.volRatio.toFixed(1)+'×</b></div><div><small>VWAP</small><b>₹'+round2(x.vwap)+'</b></div></div>'+
- '<div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital ₹'+capital+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward ₹'+reward+'</div></div>';
+ const riskAmt=Math.abs(x.entry-x.stop)*x.quantity,reward=Math.abs(x.target-x.entry)*x.quantity;
+ const candleTime=new Date(Number(x.ts)*1000).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+ return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'.NS</div><div class="tiny">'+money(x.price)+' • candle '+candleTime+' IST</div></div><div class="badge buy">'+x.side+' • '+x.score+'/100</div></div>'+
+ '<div class="meta"><div><small>ENTRY</small><b>'+money(x.entry)+'</b></div><div><small>STOP</small><b>'+money(x.stop)+'</b></div><div><small>TARGET</small><b>'+money(x.target)+'</b></div><div><small>QTY</small><b>'+x.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(x.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+x.volRatio.toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(x.vwap)+'</b></div></div>'+
+ '<div class="confidence"><i style="width:'+Math.min(100,x.score)+'%"></i></div><div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward '+money(reward)+' • data age '+x.age.toFixed(1)+' min</div></div>';
 }
-function marketStatus(){const d=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));const day=d.getDay(),m=d.getHours()*60+d.getMinutes();const open=day>=1&&day<=5&&m>=555&&m<930;document.getElementById("marketBadge").textContent=open?"MARKET OPEN":"MARKET CLOSED";document.getElementById("marketBadge").className="pill "+(open?"open":"closed");document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30";}marketStatus();setInterval(marketStatus,30000);</script>
+function updateAutoRefresh(){
+ clearInterval(refreshTimer);refreshTimer=null;
+ if(document.getElementById("autoRefresh")?.checked)refreshTimer=setInterval(()=>{if(marketInfo().open)scan()},300000);
+}
+document.getElementById("autoRefresh")?.addEventListener("change",updateAutoRefresh);
+marketStatus();setInterval(marketStatus,30000);
+</script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}</script></body></html>
