@@ -11,6 +11,15 @@ const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
+app.get("/", (_req, res) => res.json({
+  ok: true,
+  service: "intraday-scanner-broker-gateway",
+  status: "running",
+  health: "/health",
+  streams: "/api/streams",
+  trading: { enabled: false }
+}));
+
 app.get("/health", (_req,res) => res.json({
   ok:true, service:"intraday-scanner-broker-gateway", time:new Date().toISOString(),
   brokers:{angelOne:Boolean(process.env.ANGEL_API_KEY),upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)},
@@ -116,7 +125,7 @@ app.get("/api/config",(_req,res)=>res.json({
   trading:{enabled:false},interval:"5m"
 }));
 
-app.listen(port,async()=>{
+app.listen(port,"0.0.0.0",async()=>{
   console.log("Intraday Scanner broker gateway listening on "+port);
   await startConfiguredStreams();
 });
