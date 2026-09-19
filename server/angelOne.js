@@ -13,7 +13,10 @@ export function createAngelOneStream({ clientCode, feedToken, apiKey, onTick, on
     if (ws.readyState === WebSocket.OPEN) ws.send("ping");
   }, 30000);
 
-  ws.on("open", () => onStatus?.("connected"));
+  ws.on("open", () => {
+    onStatus?.("connected");
+    onStatus?.("ready_for_subscription");
+  });
   ws.on("close", () => { clearInterval(heartbeat); onStatus?.("closed"); });
   ws.on("error", err => onStatus?.("error:" + err.message));
 
@@ -33,7 +36,16 @@ export function createAngelOneStream({ clientCode, feedToken, apiKey, onTick, on
   });
 
   return {
-    subscribe: payload => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(payload)),
+    subscribe: ({tokens, mode=1, correlationID="scanner01"}={}) => {
+      if(ws.readyState !== WebSocket.OPEN || !Array.isArray(tokens) || !tokens.length) return false;
+      const payload={
+        correlationID,
+        action:1,
+        params:{mode,tokenList:[{exchangeType:1,tokens:tokens.map(String)}]}
+      };
+      ws.send(JSON.stringify(payload));
+      return true;
+    },
     close: () => { clearInterval(heartbeat); ws.close(); }
   };
 }
