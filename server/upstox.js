@@ -36,7 +36,17 @@ export async function createUpstoxStream({ accessToken, authorizeUrl, onTick, on
   });
 
   return {
-    subscribe: payload => ws.readyState === WebSocket.OPEN && ws.send(Buffer.from(JSON.stringify(payload))),
+    subscribe: ({instrumentKeys, mode="ltpc", guid="scanner01"}={}) => {
+      if(ws.readyState !== WebSocket.OPEN || !Array.isArray(instrumentKeys) || !instrumentKeys.length) return false;
+      const payload={
+        guid,
+        method:"sub",
+        data:{mode,instrumentKeys}
+      };
+      // Upstox V3 requires the subscription request as binary data.
+      ws.send(Buffer.from(JSON.stringify(payload)));
+      return true;
+    },
     close: () => ws.close()
   };
 }
