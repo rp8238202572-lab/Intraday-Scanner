@@ -1,0 +1,10 @@
+{
+  "RELIANCE": {
+    "angelOne": { "exchangeType": 1, "token": "REPLACE_WITH_ANGEL_TOKEN" },
+    "upstox": "NSE_EQ|REPLACE_WITH_INSTRUMENT_KEY"
+  },
+  "HDFCBANK": {
+    "angelOne": { "exchangeType": 1, "token": "REPLACE_WITH_ANGEL_TOKEN" },
+    "upstox": "NSE_EQ|REPLACE_WITH_INSTRUMENT_KEY"
+  }
+}
