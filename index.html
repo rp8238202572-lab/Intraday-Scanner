@@ -115,10 +115,27 @@ async function scan(){
  btn.disabled=true;out.innerHTML="";let done=0,errors=0,stale=0;
  setStatus("Scanning "+WATCH.length+" NSE stocks…");
  const results=await Promise.all(WATCH.map(async s=>{try{return setup(s,await getData(s),capital,risk,minScore)}catch(e){errors++;return null}finally{done++;setStatus("Scanning… "+done+"/"+WATCH.length)}})));
- const usable=results.filter(Boolean).filter(x=>{if(x.age>12){stale++;return false}return x.quantity>0&&x.score>=minScore});
- const found=usable.sort((a,b)=>b.score-a.score).slice(0,maxTrades);
+ const usable=results.filter(Boolean).filter(x=>{
+  // Reject stale data and the still-forming 5-minute candle.
+  if(x.age>12){stale++;return false}
+  if(x.age<4){stale++;return false}
+  // Require at least 3 meaningful confirmations before showing a setup.
+  const core=(x.side==="LONG"
+    ? [x.price>x.vwap,x.rsi>=55&&x.rsi<=72,x.volRatio>=1.2,x.price>x.stop]
+    : [x.price<x.vwap,x.rsi<=45&&x.rsi>=28,x.volRatio>=1.2,x.price<x.stop]
+  ).filter(Boolean).length;
+  if(core<3)return false;
+  return x.quantity>0&&x.score>=minScore;
+});
+ // Avoid fresh signals during the first 10 minutes and the final 10 minutes of the session.
+const mins=mi.d.getHours()*60+mi.d.getMinutes();
+const edgeWindow=mins<565||mins>=920;
+const found=edgeWindow?[]:usable.sort((a,b)=>b.score-a.score).slice(0,maxTrades);
  if(!found.length){
-   out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">No stock passed every safety gate: minimum score, affordable quantity and fresh 5-minute data. Do not force a trade.</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • stale data rejected: '+stale+'</div></div>';
+   const edgeMsg=edgeWindow
+     ? 'Safety window: the scanner avoids the first 10 minutes and final 10 minutes of the NSE regular session.'
+     : 'No stock passed every safety gate: minimum score, affordable quantity, 3+ confirmations and a completed 5-minute candle.';
+   out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+edgeMsg+' Do not force a trade.</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • stale/incomplete data rejected: '+stale+'</div></div>';
  }else out.innerHTML=found.map(x=>card(x,capital,risk)).join("");
  lastScanAt=Date.now();
  setStatus("Scan complete • "+found.length+" setup(s) passed • "+errors+" unavailable • "+stale+" stale rejected");
@@ -129,7 +146,7 @@ function card(x,capital,risk){
  const candleTime=new Date(Number(x.ts)*1000).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
  return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'.NS</div><div class="tiny">'+money(x.price)+' • candle '+candleTime+' IST</div></div><div class="badge buy">'+x.side+' • '+x.score+'/100</div></div>'+
  '<div class="meta"><div><small>ENTRY</small><b>'+money(x.entry)+'</b></div><div><small>STOP</small><b>'+money(x.stop)+'</b></div><div><small>TARGET</small><b>'+money(x.target)+'</b></div><div><small>QTY</small><b>'+x.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(x.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+x.volRatio.toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(x.vwap)+'</b></div></div>'+
- '<div class="confidence"><i style="width:'+Math.min(100,x.score)+'%"></i></div><div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward '+money(reward)+' • data age '+x.age.toFixed(1)+' min</div></div>';
+ '<div class="confidence"><i style="width:'+Math.min(100,x.score)+'%"></i></div><div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward '+money(reward)+' • data age '+x.age.toFixed(1)+' min • completed candle</div></div>';
 }
 function updateAutoRefresh(){
  clearInterval(refreshTimer);refreshTimer=null;
