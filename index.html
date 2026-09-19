@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07130f"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>Intraday Scanner</title>
+<style>
+:root{--bg:#0b1220;--card:#111a2b;--card2:#162238;--ink:#f8fafc;--muted:#94a3b8;--line:#26344d;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--blue:#38bdf8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.app{max-width:760px;margin:auto;min-height:100vh;padding-bottom:30px}header{padding:20px 16px 14px;background:linear-gradient(135deg,#111827,#172554);position:sticky;top:0;z-index:5}h1{margin:0;font-size:23px}.sub{color:#b7c3d4;font-size:12px;margin-top:4px}.wrap{padding:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:9px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}input,select,button{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#0e1728;color:var(--ink);font:inherit}button{font-weight:800;background:#1d4ed8;border-color:#2563eb}button.secondary{background:#182338;border-color:var(--line)}button:disabled{opacity:.5}.status{padding:12px;border-radius:12px;background:#0d1728;color:var(--muted);font-size:12px;line-height:1.45}.stock{border:1px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;background:var(--card2)}.stocktop{display:flex;justify-content:space-between;gap:8px;align-items:center}.sym{font-size:17px;font-weight:900}.price{font-weight:800}.badge{padding:5px 9px;border-radius:999px;font-size:10px;font-weight:900}.buy{background:#052e16;color:#86efac}.wait{background:#422006;color:#fde68a}.avoid{background:#450a0a;color:#fca5a5}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}.meta div{background:#0e1728;border-radius:9px;padding:7px}.meta small{display:block;color:var(--muted);font-size:9px}.meta b{font-size:12px}.reason{font-size:11px;color:#cbd5e1;margin-top:9px;line-height:1.4}.tiny{font-size:10px;color:var(--muted);line-height:1.4}.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.green{color:#86efac}.red{color:#fca5a5}.yellow{color:#fde68a}.blue{color:#7dd3fc}@media(max-width:430px){.grid{grid-template-columns:1fr}.meta{grid-template-columns:repeat(2,1fr)}}
+ .hero{background:linear-gradient(135deg,#172554,#0f766e);border:0}.hero h2{margin:0 0 5px;font-size:18px}.hero p{margin:0;color:#dbeafe;font-size:12px;line-height:1.5}.market{display:flex;justify-content:space-between;align-items:center;gap:8px}.market b{font-size:13px}.pill{padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900}.open{background:#052e16;color:#86efac}.closed{background:#3f1d1d;color:#fca5a5}.how .step{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.how .step:last-child{border:0}.num{min-width:24px;height:24px;border-radius:50%;background:#1d4ed8;display:grid;place-items:center;font-weight:900;font-size:11px}.confidence{height:8px;border-radius:99px;background:#0e1728;overflow:hidden;margin-top:10px}.confidence i{display:block;height:100%;background:#22c55e}</style>
+</head>
+<body>
+<div class="app">
+<header><h1>📈 Intraday Scanner</h1><div class="sub">NSE • rule-based setup scanner • not a guaranteed prediction</div></header>
+<div class="wrap"><div class="card hero"><h2>🤝 Beginner Mode</h2><p>Tu sirf capital enter kar. Baaki scanner trend, momentum, volume, VWAP, stop-loss aur quantity ko check karega. <b>Signal mile tabhi trade consider karna.</b></p></div><div class="card market"><span><b>Market status</b><small id="marketTime" class="tiny" style="display:block">Checking IST time…</small></span><span id="marketBadge" class="pill closed">CHECKING</span></div>
+<div class="card">
+<div class="grid">
+<div><label>Capital (₹)</label><input id="capital" type="number" min="500" step="100" value="2000"></div>
+<div><label>Risk / trade (%)</label><input id="risk" type="number" min=".25" max="5" step=".25" value="1"></div>
+</div>
+<div class="grid" style="margin-top:8px">
+<div><label>Max trades / day</label><select id="maxTrades"><option>1</option><option selected>2</option><option>3</option></select></div>
+<div><label>Minimum setup score</label><select id="minScore"><option value="60">60</option><option value="65" selected>65</option><option value="70">70</option><option value="75">75</option></select></div>
+</div>
+<button id="scan" style="margin-top:10px" onclick="scan()">🔎 Scan market</button>
+</div>
+<div id="status" class="status">Ready. Tap Scan market. The scanner checks a focused NSE watchlist and returns only setups that pass the rules.</div>
+<div id="results"></div><div id="education"></div>
+<div class="card">
+<div class="row"><span>Signal logic</span><b class="blue">5-minute candles</b></div>
+<div class="row"><span>Trend</span><span>EMA 9 vs EMA 21</span></div>
+<div class="row"><span>Momentum</span><span>RSI 14</span></div>
+<div class="row"><span>Confirmation</span><span>VWAP + volume</span></div>
+<div class="row"><span>Risk</span><span>ATR-based stop + position sizing</span></div>
+<div class="tiny" style="margin-top:8px">A “BUY SETUP” means the rules currently align; it is not a guarantee that the trade will make money. If no stock passes the threshold, the app shows NO TRADE.</div>
+</div>
+<div class="card tiny">Data source note: this prototype uses a browser CORS proxy to read Yahoo Finance chart data. Yahoo’s chart endpoint is unofficial and browser-direct calls are commonly blocked by CORS, so this should be treated as a prototype data layer rather than an exchange-grade feed.</div>
+</div>
+</div>
+<script>
+const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL"];
+const proxy="https://corsproxy.io/?url=";
+const yf=s=>proxy+encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/"+s+".NS?range=1d&interval=5m&includePrePost=false");
+
+function ema(a,n){if(a.length<n)return null;let k=2/(n+1),e=a.slice(0,n).reduce((x,y)=>x+y,0)/n;for(let i=n;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+function rsi(a,n=14){if(a.length<=n)return 50;let g=0,l=0;for(let i=1;i<=n;i++){let d=a[i]-a[i-1];g+=Math.max(d,0);l+=Math.max(-d,0)}let ag=g/n,al=l/n;for(let i=n+1;i<a.length;i++){let d=a[i]-a[i-1];ag=(ag*(n-1)+Math.max(d,0))/n;al=(al*(n-1)+Math.max(-d,0))/n}return al===0?100:100-(100/(1+ag/al))}
+function atr(h,l,c,n=14){if(c.length<=n)return 0;let tr=[];for(let i=1;i<c.length;i++)tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));return tr.slice(-n).reduce((a,b)=>a+b,0)/n}
+function vwap(h,l,c,v){let pv=0,vol=0;for(let i=0;i<c.length;i++){let tp=(h[i]+l[i]+c[i])/3;pv+=tp*(v[i]||0);vol+=v[i]||0}return vol?pv/vol:c.at(-1)}
+function round2(x){return Math.round(x*100)/100}
+function setup(symbol,raw,capital,riskPct,minScore){
+ const q=raw.chart.result[0], z=q.indicators.quote[0];
+ const c=z.close.map(Number),h=z.high.map(Number),l=z.low.map(Number),v=z.volume.map(Number);
+ const clean=c.map((x,i)=>({c:x,h:h[i],l:l[i],v:v[i]})).filter(x=>Number.isFinite(x.c)&&Number.isFinite(x.h)&&Number.isFinite(x.l));
+ if(clean.length<30) throw Error("Not enough candles");
+ const C=clean.map(x=>x.c),H=clean.map(x=>x.h),L=clean.map(x=>x.l),V=clean.map(x=>x.v);
+ const price=C.at(-1), e9=ema(C,9),e21=ema(C,21),rv=rsi(C),vw=vwap(H,L,C,V),a=atr(H,L,C);
+ const last20=C.slice(-21,-1),high20=Math.max(...last20),low20=Math.min(...last20);
+ const avgVol=V.slice(-21,-1).reduce((a,b)=>a+b,0)/20,volRatio=avgVol?V.at(-1)/avgVol:0;
+ const bullish=price>e9&&e9>e21&&price>vw;
+ const bearish=price<e9&&e9<e21&&price<vw;
+ const breakout=price>high20;
+ const breakdown=price<low20;
+ const momentumLong=rv>=55&&rv<=72,momentumShort=rv<=45&&rv>=28;
+ let long=0,short=0;
+ if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(momentumLong)long+=15;if(volRatio>=1.2)long+=15;if(breakout)long+=10;
+ if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(momentumShort)short+=15;if(volRatio>=1.2)short+=15;if(breakdown)short+=10;
+ const side=long>=short?"LONG":"SHORT",score=Math.max(long,short);
+ const entry=price, stop=side==="LONG"?price-Math.max(a*1.1,price*.004):price+Math.max(a*1.1,price*.004);
+ const riskPerShare=Math.abs(entry-stop);
+ const riskMoney=Math.max(1,capital*riskPct/100);
+ const qty=Math.max(0,Math.floor(riskMoney/riskPerShare));
+ const affordable=Math.max(0,Math.floor(capital/entry));
+ const quantity=Math.min(qty,affordable);
+ const target=side==="LONG"?entry+riskPerShare*1.8:entry-riskPerShare*1.8;
+ const reason=side==="LONG"
+  ? [price>e21?"above EMA21":"below EMA21",e9>e21?"EMA9>EMA21":"EMA9<EMA21",price>vw?"above VWAP":"below VWAP",momentumLong?"RSI supportive":"RSI weak",volRatio>=1.2?"volume confirmed":"volume not confirmed",breakout?"20-candle breakout":"no breakout"].join(" • ")
+  : [price<e21?"below EMA21":"above EMA21",e9<e21?"EMA9<EMA21":"EMA9>EMA21",price<vw?"below VWAP":"above VWAP",momentumShort?"RSI supportive":"RSI strong",volRatio>=1.2?"volume confirmed":"volume not confirmed",breakdown?"20-candle breakdown":"no breakdown"].join(" • ");
+ return {symbol,price,side,score,entry,stop,target,quantity,rsi:rv,volRatio,vwap:vw,atr:a,reason,affordable};
+}
+async function getData(symbol){const r=await fetch(yf(symbol),{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}
+async function scan(){
+ const btn=document.getElementById("scan"),status=document.getElementById("status"),out=document.getElementById("results");
+ const capital=Number(document.getElementById("capital").value)||2000,risk=Number(document.getElementById("risk").value)||1,minScore=Number(document.getElementById("minScore").value)||65,maxTrades=Number(document.getElementById("maxTrades").value)||2;
+ btn.disabled=true;out.innerHTML="";let done=0,found=[],errors=0;
+ status.textContent="Scanning "+WATCH.length+" NSE stocks…";
+ const results=await Promise.all(WATCH.map(async s=>{try{return setup(s,await getData(s),capital,risk,minScore)}catch(e){errors++;return null}finally{done++;status.textContent="Scanning… "+done+"/"+WATCH.length}})));
+ found=results.filter(Boolean).filter(x=>x.score>=minScore&&x.quantity>0).sort((a,b)=>b.score-a.score).slice(0,maxTrades);
+ if(!found.length){out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">No setup passed the selected score/risk rules with the entered capital. This is a valid result—do not force a trade.</div></div>';status.textContent="Scan complete • "+errors+" symbols unavailable";btn.disabled=false;return}
+ out.innerHTML=found.map(x=>card(x,capital,risk)).join("");
+ status.textContent="Scan complete • "+found.length+" setup(s) passed • "+errors+" symbols unavailable";
+ btn.disabled=false;
+}
+function card(x,capital,risk){
+ const riskAmt=round2(Math.abs(x.entry-x.stop)*x.quantity),reward=round2(Math.abs(x.target-x.entry)*x.quantity);
+ return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'.NS</div><div class="tiny">₹'+round2(x.price)+'</div></div><div class="badge buy">'+x.side+' • '+x.score+'/100</div></div>'+
+ '<div class="meta"><div><small>ENTRY</small><b>₹'+round2(x.entry)+'</b></div><div><small>STOP</small><b>₹'+round2(x.stop)+'</b></div><div><small>TARGET</small><b>₹'+round2(x.target)+'</b></div><div><small>QTY</small><b>'+x.quantity+'</b></div><div><small>RISK</small><b>₹'+riskAmt+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(x.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+x.volRatio.toFixed(1)+'×</b></div><div><small>VWAP</small><b>₹'+round2(x.vwap)+'</b></div></div>'+
+ '<div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital ₹'+capital+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward ₹'+reward+'</div></div>';
+}
+function marketStatus(){const d=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));const day=d.getDay(),m=d.getHours()*60+d.getMinutes();const open=day>=1&&day<=5&&m>=555&&m<930;document.getElementById("marketBadge").textContent=open?"MARKET OPEN":"MARKET CLOSED";document.getElementById("marketBadge").className="pill "+(open?"open":"closed");document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30";}marketStatus();setInterval(marketStatus,30000);</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}</script></body></html>
