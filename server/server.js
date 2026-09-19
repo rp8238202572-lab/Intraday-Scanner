@@ -55,6 +55,14 @@ app.post("/api/history/upstox",async(req,res)=>{
   }
 });
 
+app.get("/api/instruments/upstox",async(_req,res)=>{
+  try{
+    const {loadUpstoxInstruments}=await import("./instruments.js");
+    const instruments=await loadUpstoxInstruments();
+    res.json({ok:true,instruments});
+  }catch(e){res.status(503).json({ok:false,error:e.message});}
+});
+
 app.get("/api/signal/:instrumentKey",(req,res)=>{
   const key=String(req.params.instrumentKey);
   const candles=getBuilder(key).snapshot();
