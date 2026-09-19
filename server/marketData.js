@@ -1,13 +1,14 @@
 export function normalizeTick(tick) {
   if (!tick?.broker) return null;
-  // Common shape consumed by the scanner. Broker-specific adapters can fill
-  // these fields as their binary/JSON payload decoders are enabled.
+  const ltp=Number(tick.ltp);
+  if (!Number.isFinite(ltp)||ltp<=0) return null;
   return {
     broker: tick.broker,
-    instrumentKey: tick.instrumentKey ?? null,
+    instrumentKey: tick.instrumentKey ?? tick.symbol ?? tick.token ?? null,
     symbol: tick.symbol ?? null,
-    ltp: Number.isFinite(Number(tick.ltp)) ? Number(tick.ltp) : null,
+    ltp,
     volume: Number.isFinite(Number(tick.volume)) ? Number(tick.volume) : null,
-    timestamp: tick.timestamp ?? Date.now()
+    volumeDelta: Number.isFinite(Number(tick.volumeDelta)) ? Number(tick.volumeDelta) : null,
+    timestamp: Number.isFinite(Number(tick.timestamp)) ? Number(tick.timestamp) : Date.now()
   };
 }
