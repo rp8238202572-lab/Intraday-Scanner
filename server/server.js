@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { CandleBuilder } from "./candleBuilder.js";
 import { normalizeTick } from "./marketData.js";
+import { calculateSignal } from "./signalEngine.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -42,6 +43,14 @@ app.get("/api/candles", (_req,res) => {
 app.post("/api/tick", (req,res) => {
   const completed=pushLiveTick(req.body);
   res.json({ok:true, completed});
+});
+
+app.get("/api/signal/:instrumentKey", (req,res) => {
+  const key=String(req.params.instrumentKey);
+  const builder=candleBuilders.get(key);
+  const candles=builder?.snapshot() ?? [];
+  const signal=calculateSignal(candles,{capital:Number(req.query.capital)||2000,riskPct:Number(req.query.risk)||1,minScore:Number(req.query.minScore)||65});
+  res.json({ok:true,instrumentKey:key,signal});
 });
 
 app.get("/api/config", (_req, res) => {
