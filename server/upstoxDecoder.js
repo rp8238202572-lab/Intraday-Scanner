@@ -14,13 +14,14 @@ export async function decodeUpstoxFeed(buffer, protoPath="./upstox.proto"){
   const feeds=message.feeds || {};
   const out=[];
   for(const [instrumentKey, feed] of Object.entries(feeds)){
-    const ltpc=feed.ltpc;
+    const ltpc=feed.ltpc ?? feed.fullFeed?.marketFF?.ltpc;
     if(!ltpc || ltpc.ltp==null) continue;
+    const currentTs=feed.currentTs ?? message.currentTs;
     out.push({
       broker:"upstox",
       instrumentKey,
       ltp:Number(ltpc.ltp),
-      timestamp:ltpc.ltt ? Number(ltpc.ltt) : Date.now(),
+      timestamp:ltpc.ltt ? Number(ltpc.ltt) : (currentTs ? Number(currentTs) : Date.now()),
       volume:ltpc.ltq!=null ? Number(ltpc.ltq) : null
     });
   }
