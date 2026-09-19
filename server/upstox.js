@@ -1,0 +1,34 @@
+import WebSocket from "ws";
+
+export async function createUpstoxStream({ accessToken, authorizeUrl, onTick, onStatus }) {
+  if (!accessToken) throw new Error("Upstox access token is not configured");
+
+  const authEndpoint = authorizeUrl || "https://api.upstox.com/v3/feed/market-data-feed/authorize";
+  const response = await fetch(authEndpoint, {
+    headers: {
+      Authorization: "Bearer " + accessToken,
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) throw new Error("Upstox feed authorization failed: HTTP " + response.status);
+
+  const body = await response.json();
+  const wsUrl = body?.data?.authorizedRedirectUri;
+  if (!wsUrl) throw new Error("Upstox authorization response did not contain a WebSocket URL");
+
+  const ws = new WebSocket(wsUrl, { headers: { Authorization: "Bearer " + accessToken } });
+
+  ws.on("open", () => onStatus?.("connected"));
+  ws.on("close", () => onStatus?.("closed"));
+  ws.on("error", err => onStatus?.("error:" + err.message));
+  ws.on("message", data => {
+    // V3 uses protobuf payloads. Keep decoding in this adapter; the rest of
+    // the scanner consumes normalized ticks only.
+    onTick?.({ broker: "upstox", raw: data });
+  });
+
+  return {
+    subscribe: payload => ws.readyState === WebSocket.OPEN && ws.send(Buffer.from(JSON.stringify(payload))),
+    close: () => ws.close()
+  };
+}
