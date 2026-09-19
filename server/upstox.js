@@ -16,15 +16,18 @@ export async function createUpstoxStream({ accessToken, authorizeUrl, onTick, on
   const wsUrl = body?.data?.authorizedRedirectUri;
   if (!wsUrl) throw new Error("Upstox authorization response did not contain a WebSocket URL");
 
-  const ws = new WebSocket(wsUrl, { headers: { Authorization: "Bearer " + accessToken } });
+  const ws = new WebSocket(wsUrl, {
+    headers: { Authorization: "Bearer " + accessToken, Accept: "*/*" },
+    followRedirects: true
+  });
 
   ws.on("open", () => onStatus?.("connected"));
   ws.on("close", () => onStatus?.("closed"));
   ws.on("error", err => onStatus?.("error:" + err.message));
   ws.on("message", data => {
-    // V3 uses protobuf payloads. Keep decoding in this adapter; the rest of
-    // the scanner consumes normalized ticks only.
-    onTick?.({ broker: "upstox", raw: data });
+    // V3 payloads are protobuf-encoded. Keep the raw packet here until the
+    // official proto schema is wired into the decoder.
+    onTick?.({ broker: "upstox", raw: data, timestamp: Date.now() });
   });
 
   return {
