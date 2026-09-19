@@ -11,7 +11,7 @@ export async function createUpstoxStream({ accessToken, authorizeUrl, onTick, on
   if (!response.ok) throw new Error("Upstox feed authorization failed: HTTP " + response.status);
 
   const body = await response.json();
-  const wsUrl = body?.data?.authorizedRedirectUri;
+  const wsUrl = body?.data?.authorized_redirect_uri ?? body?.data?.authorizedRedirectUri;
   if (!wsUrl) throw new Error("Upstox authorization response did not contain a WebSocket URL");
 
   const ws = new WebSocket(wsUrl, {
