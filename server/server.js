@@ -108,7 +108,7 @@ async function startConfiguredStreams(){
   }
 }
 
-app.get("/api/streams",(_req,res)=>res.json({ok:true,streams:streamState,live:Object.values(activeStreams).some(Boolean)}));
+app.get("/api/angelone/callback",(req,res)=>{\n  const authToken=String(req.query.auth_token||"");\n  const feedToken=String(req.query.feed_token||"");\n  if(!authToken && !feedToken){\n    return res.status(400).send("Angel One callback received without auth_token/feed_token.");\n  }\n  // Do not log or expose broker tokens. This endpoint only confirms receipt.\n  res.send("Angel One authentication callback received. You can return to Intraday Scanner.");\n});\n\napp.get("/api/streams",(_req,res)=>res.json({ok:true,streams:streamState,live:Object.values(activeStreams).some(Boolean)}));
 
 app.get("/api/candles",(_req,res)=>{
   res.json({ok:true,interval:"5m",candles:[...candleBuilders.values()].flatMap(x=>x.snapshot())});
