@@ -6,6 +6,7 @@ import { CandleBuilder } from "./candleBuilder.js";
 import { normalizeTick } from "./marketData.js";
 import { calculateSignal } from "./signalEngine.js";
 import { fetchUpstoxCandles } from "./upstoxHistorical.js";
+import { growwConfigured, growwGetQuote, growwGetLtp, growwGetHistoricalCandles, growwGetOptionChain } from "./groww.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -24,7 +25,8 @@ app.get("/health", (_req,res) => res.json({
   time:new Date().toISOString(),
   brokers:{
     angelOne:Boolean(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN && process.env.ANGEL_AUTH_TOKEN),
-    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN),
+    groww:growwConfigured()
   },
   trading:{enabled:false}
 }));
@@ -163,7 +165,8 @@ app.get("/api/status",(_req,res)=>{
     streams:streamState,
     brokers:{
       angelOne:Boolean(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN && process.env.ANGEL_AUTH_TOKEN),
-      upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+      upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN),
+      groww:growwConfigured()
     },
     lastTickAt,
     tickCounts,
@@ -212,6 +215,59 @@ app.get("/api/instruments/upstox",async(_req,res)=>{
   }
 });
 
+app.get("/api/groww/status",(_req,res)=>res.json({
+  ok:true,
+  configured:growwConfigured(),
+  tradingEnabled:false,
+  message:growwConfigured() ? "Groww access token configured" : "Add GROWW_ACCESS_TOKEN in Render to enable Groww API"
+}));
+
+app.get("/api/groww/quote",async(req,res)=>{
+  try{
+    const exchange=String(req.query.exchange||"NSE");
+    const segment=String(req.query.segment||"CASH");
+    const tradingSymbol=String(req.query.trading_symbol||"");
+    if(!tradingSymbol) return res.status(400).json({ok:false,error:"trading_symbol is required"});
+    const quote=await growwGetQuote({exchange,segment,tradingSymbol});
+    res.json({ok:true,quote});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
+app.get("/api/groww/ltp",async(req,res)=>{
+  try{
+    const segment=String(req.query.segment||"CASH");
+    const exchangeSymbols=String(req.query.exchange_symbols||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,50);
+    if(!exchangeSymbols.length) return res.status(400).json({ok:false,error:"exchange_symbols is required"});
+    const ltp=await growwGetLtp({segment,exchangeSymbols});
+    res.json({ok:true,ltp});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
+app.get("/api/groww/history",async(req,res)=>{
+  try{
+    const candles=await growwGetHistoricalCandles({
+      exchange:String(req.query.exchange||"NSE"),
+      segment:String(req.query.segment||"CASH"),
+      tradingSymbol:String(req.query.trading_symbol||""),
+      startTime:String(req.query.start_time||""),
+      endTime:String(req.query.end_time||""),
+      interval:Number(req.query.interval||5)
+    });
+    res.json({ok:true,candles});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
+app.get("/api/groww/option-chain",async(req,res)=>{
+  try{
+    const exchange=String(req.query.exchange||"NSE");
+    const underlying=String(req.query.underlying||"");
+    const expiryDate=String(req.query.expiry_date||"");
+    if(!underlying || !expiryDate) return res.status(400).json({ok:false,error:"underlying and expiry_date are required"});
+    const optionChain=await growwGetOptionChain({exchange,underlying,expiryDate});
+    res.json({ok:true,optionChain});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
 app.get("/api/signal/:instrumentKey",(req,res)=>{
   const key=String(req.params.instrumentKey);
   const candles=getBuilder(key).snapshot();
@@ -231,7 +287,8 @@ app.get("/api/config",(_req,res)=>res.json({
       process.env.ANGEL_FEED_TOKEN &&
       process.env.ANGEL_AUTH_TOKEN
     ),
-    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN),
+    groww:growwConfigured()
   },
   trading:{enabled:false},
   interval:"5m"
