@@ -99,7 +99,7 @@ async function loadRuntimeStatus(){
   const candleEl=document.getElementById("candleStatus");
   const lastEl=document.getElementById("lastDataStatus");
   if(brokerEl){brokerEl.textContent=configured.length?(live?configured.join(" + ")+" • LIVE":configured.join(" + ")+" • CONFIGURED"):"NO BROKER";brokerEl.className=live?"green":(configured.length?"yellow":"red");}
-  if(tickEl)tickEl.textContent=Number(s.tickCounts?.upstox||0)+Number(s.tickCounts?.angelOne||0).toLocaleString("en-IN");
+  if(tickEl)tickEl.textContent=(Number(s.tickCounts?.upstox||0)+Number(s.tickCounts?.angelOne||0)).toLocaleString("en-IN");
   if(candleEl)candleEl.textContent=String(s.readyCandles||0)+" / "+String(s.instrumentCount||0);
   if(lastEl)lastEl.textContent=last?new Date(last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})+" IST":"Waiting for ticks";
  }catch(e){
