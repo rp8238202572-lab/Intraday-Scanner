@@ -58,7 +58,13 @@ export function calculateSignal(candles,{capital=2000,riskPct=1,minScore=65}={})
   if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(rv<=45&&rv>=28)short+=15;if(volRatio>=1.2)short+=10;if(price<low20)short+=10;if(slope<0&&price<prev)short+=5;
 
   const side=long>=short?"LONG":"SHORT",score=Math.max(long,short);
-  const checks=side==="LONG"?{trend:price>e21&&e9>e21,vwap:price>vw,momentum:rv>=55&&rv<=72,volume:volRatio>=1.2,breakout:price>high20}:{trend:price<e21&&e9<e21,vwap:price<vw,momentum:rv<=45&&rv>=28,volume:volRatio>=1.2,breakout:price<low20};\n  const reasons=[];\n  if(checks.trend) reasons.push("Trend");\n  if(checks.vwap) reasons.push("VWAP");\n  if(checks.momentum) reasons.push("RSI");\n  if(checks.volume) reasons.push("Volume");\n  if(checks.breakout) reasons.push("Breakout");
+  const checks=side==="LONG"?{trend:price>e21&&e9>e21,vwap:price>vw,momentum:rv>=55&&rv<=72,volume:volRatio>=1.2,breakout:price>high20}:{trend:price<e21&&e9<e21,vwap:price<vw,momentum:rv<=45&&rv>=28,volume:volRatio>=1.2,breakout:price<low20};
+  const reasons=[];
+  if(checks.trend) reasons.push("Trend");
+  if(checks.vwap) reasons.push("VWAP");
+  if(checks.momentum) reasons.push("RSI");
+  if(checks.volume) reasons.push("Volume");
+  if(checks.breakout) reasons.push("Breakout");
   if(!volumeReady)return {
     signal:"NO_TRADE",score:0,price,side,checks,reasons,
     reason:"Volume data is not ready for the latest completed 5-minute candle."
