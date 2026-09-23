@@ -83,9 +83,36 @@ function card(x,capital,risk){
  '<div class="meta"><div><small>ENTRY</small><b>'+money(s.price)+'</b></div><div><small>STOP</small><b>'+money(s.stop)+'</b></div><div><small>TARGET</small><b>'+money(s.target)+'</b></div><div><small>QTY</small><b>'+s.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(s.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+Number(s.volumeRatio).toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(s.vwap)+'</b></div></div>'+
  '<div class="confidence"><i style="width:'+Math.min(100,Number(s.score))+'%"></i></div><div class="reason">'+(s.side==="LONG"?"Bullish":"Bearish")+' setup • score '+s.score+' • ATR '+round2(s.atr)+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • estimated reward '+money(reward)+' • trading execution is disabled</div></div>';
 }
+async function loadRuntimeStatus(){
+ try{
+  const r=await fetch("/api/status",{cache:"no-store"});
+  if(!r.ok)throw Error("status "+r.status);
+  const s=await r.json();
+  const configured=[];
+  if(s.brokers?.upstox)configured.push("Upstox");
+  if(s.brokers?.angelOne)configured.push("Angel One");
+  const states=Object.values(s.streams||{}).filter(Boolean);
+  const live=states.some(x=>x==="connected"||x==="subscribed"||x==="ready_for_subscription");
+  const last=Object.values(s.lastTickAt||{}).filter(Boolean).sort().at(-1);
+  const brokerEl=document.getElementById("brokerStatus");
+  const tickEl=document.getElementById("tickStatus");
+  const candleEl=document.getElementById("candleStatus");
+  const lastEl=document.getElementById("lastDataStatus");
+  if(brokerEl){brokerEl.textContent=configured.length?(live?configured.join(" + ")+" • LIVE":configured.join(" + ")+" • CONFIGURED"):"NO BROKER";brokerEl.className=live?"green":(configured.length?"yellow":"red");}
+  if(tickEl)tickEl.textContent=Number(s.tickCounts?.upstox||0)+Number(s.tickCounts?.angelOne||0).toLocaleString("en-IN");
+  if(candleEl)candleEl.textContent=String(s.readyCandles||0)+" / "+String(s.instrumentCount||0);
+  if(lastEl)lastEl.textContent=last?new Date(last).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})+" IST":"Waiting for ticks";
+ }catch(e){
+  const el=document.getElementById("brokerStatus");
+  if(el){el.textContent="STATUS UNAVAILABLE";el.className="red";}
+ }
+}
 function updateAutoRefresh(){
  clearInterval(refreshTimer);refreshTimer=null;
- if(document.getElementById("autoRefresh")?.checked)refreshTimer=setInterval(()=>scan(),300000);
+ if(document.getElementById("autoRefresh")?.checked)refreshTimer=setInterval(()=>{
+   if(marketInfo().open)scan();
+   else setStatus("Auto refresh paused because NSE market is closed.");
+ },300000);
 }
 document.getElementById("autoRefresh")?.addEventListener("change",updateAutoRefresh);
-marketStatus();setInterval(marketStatus,30000);
+marketStatus();setInterval(marketStatus,30000);loadRuntimeStatus();setInterval(loadRuntimeStatus,15000);
