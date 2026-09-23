@@ -48,6 +48,12 @@ export function calculateSignal(candles,{capital=2000,riskPct=1,minScore=65}={})
   const diagnosticsBase={completedCandles:completed.length,price,e9,e21,rsi:rv,atr:a,vwap:vw,volumeRatio:volRatio,avgVolume:avgVol,latestCompletedVolume,high20,low20,slope,longScore:long,shortScore:short,checks,reasons};
   if(!volumeReady)return {signal:"NO_TRADE",score,price,side,checks,reasons,diagnostics:diag("VOLUME_NOT_READY","Volume data is not ready for the latest completed 5-minute candle.",diagnosticsBase)};
   if(score<minScore)return {signal:"NO_TRADE",score,price,side,checks,reasons,diagnostics:diag("SCORE_BELOW_MIN","Best score "+score+" is below the selected minimum "+minScore+".",diagnosticsBase)};
+  const coreConfirmations=[checks.trend,checks.vwap,checks.momentum,checks.volume].filter(Boolean).length;
+  const directionalCandle=side==="LONG"?price>=prev:price<=prev;
+  const qualityGate=coreConfirmations>=4&&directionalCandle;
+  diagnosticsBase.coreConfirmations=coreConfirmations;
+  diagnosticsBase.directionalCandle=directionalCandle;
+  if(!qualityGate)return {signal:"NO_TRADE",score,price,side,checks,reasons,diagnostics:diag("QUALITY_GATE","Score passed, but the core trend/VWAP/RSI/volume confirmation gate was not fully aligned.",diagnosticsBase)};
   const stopDist=Math.max(a*1.1,price*.004),riskMoney=capital*riskPct/100;
   const qty=Math.max(0,Math.min(Math.floor(riskMoney/stopDist),Math.floor(capital/price)));
   if(qty<1)return {signal:"NO_TRADE",score,price,side,checks,reasons,diagnostics:diag("QUANTITY_ZERO","Capital/risk settings produce quantity 0.",{...diagnosticsBase,stopDistance:stopDist,riskMoney})};
