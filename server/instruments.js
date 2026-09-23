@@ -21,7 +21,9 @@ export async function loadUpstoxInstruments(url="https://assets.upstox.com/marke
   const map=new Map();
   for(const x of rows){
     if(x.segment!=="NSE_EQ" || x.instrument_type!=="EQ") continue;
-    const symbol=String(x.trading_symbol||"").toUpperCase();
+    let symbol=String(x.trading_symbol||"").toUpperCase();
+    // Upstox may expose Tata Motors under the current post-demerger symbol.
+    if(symbol==="TATAMOTORS" || symbol==="TMPV") symbol="TATAMOTORS";
     if(WATCH.includes(symbol) && !map.has(symbol)) map.set(symbol,String(x.instrument_key));
   }
   return Object.fromEntries(map);
