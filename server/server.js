@@ -19,8 +19,13 @@ app.use(express.static(webRoot));
 app.get("/", (_req, res) => res.sendFile(path.join(webRoot, "index.html")));
 
 app.get("/health", (_req,res) => res.json({
-  ok:true, service:"intraday-scanner-broker-gateway", time:new Date().toISOString(),
-  brokers:{angelOne:Boolean(process.env.ANGEL_API_KEY),upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)},
+  ok:true,
+  service:"intraday-scanner-broker-gateway",
+  time:new Date().toISOString(),
+  brokers:{
+    angelOne:Boolean(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN && process.env.ANGEL_AUTH_TOKEN),
+    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+  },
   trading:{enabled:false}
 }));
 
@@ -44,8 +49,6 @@ function pushLiveTick(rawTick){
 async function seedUpstoxHistory(instruments){
   const entries=Object.entries(instruments||{});
   if(!entries.length) return;
-  // Use completed trading days for the historical seed. Querying "today" too
-  // early in the session can return little/no completed 5-minute history.
   const now=Date.now();
   const toDate=new Date(now-24*60*60*1000).toISOString().slice(0,10);
   const fromDate=new Date(now-10*24*60*60*1000).toISOString().slice(0,10);
@@ -85,26 +88,42 @@ async function startConfiguredStreams(){
         onStatus:s=>{streamState.upstox=s; console.log("Upstox:",s);},
         onTick:pushLiveTick
       });
-
-      // Seed enough recent 5-minute candles so the signal engine is ready
-      // immediately after a deploy/restart instead of waiting for 50 live candles.
       seedUpstoxHistory(instruments).catch(e=>console.error("Upstox history seed:",e.message));
-    }catch(e){streamState.upstox="error:"+e.message;console.error("Upstox stream:",e.message);}
+    }catch(e){
+      streamState.upstox="error:"+e.message;
+      console.error("Upstox stream:",e.message);
+    }
   }
-  if(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN){
+
+  const angelConfigured =
+    process.env.ANGEL_API_KEY &&
+    process.env.ANGEL_CLIENT_CODE &&
+    process.env.ANGEL_FEED_TOKEN &&
+    process.env.ANGEL_AUTH_TOKEN;
+
+  if(angelConfigured){
     try{
       const {createAngelOneStream}=await import("./angelOne.js");
       const {loadAngelOneInstruments}=await import("./instruments.js");
       const instruments=await loadAngelOneInstruments();
+
       activeStreams.angelOne=await createAngelOneStream({
         apiKey:process.env.ANGEL_API_KEY,
         clientCode:process.env.ANGEL_CLIENT_CODE,
         feedToken:process.env.ANGEL_FEED_TOKEN,
+        authToken:process.env.ANGEL_AUTH_TOKEN,
         onStatus:s=>{streamState.angelOne=s; console.log("Angel One:",s);},
         onTick:pushLiveTick
       });
-      activeStreams.angelOne.subscribe({tokens:Object.values(instruments).map(x=>x.token),mode:1});
-    }catch(e){streamState.angelOne="error:"+e.message;console.error("Angel One stream:",e.message);}
+
+      activeStreams.angelOne.subscribe({
+        tokens:Object.values(instruments).map(x=>x.token),
+        mode:1
+      });
+    }catch(e){
+      streamState.angelOne="error:"+e.message;
+      console.error("Angel One stream:",e.message);
+    }
   }
 }
 
@@ -114,14 +133,21 @@ app.get("/api/angelone/callback",(req,res)=>{
   if(!authToken && !feedToken){
     return res.status(400).send("Angel One callback received without auth_token/feed_token.");
   }
-  // Do not log or expose broker tokens. This endpoint only confirms receipt.
   res.send("Angel One authentication callback received. You can return to Intraday Scanner.");
 });
 
-app.get("/api/streams",(_req,res)=>res.json({ok:true,streams:streamState,live:Object.values(activeStreams).some(Boolean)}));
+app.get("/api/streams",(_req,res)=>res.json({
+  ok:true,
+  streams:streamState,
+  live:Object.values(activeStreams).some(Boolean)
+}));
 
 app.get("/api/candles",(_req,res)=>{
-  res.json({ok:true,interval:"5m",candles:[...candleBuilders.values()].flatMap(x=>x.snapshot())});
+  res.json({
+    ok:true,
+    interval:"5m",
+    candles:[...candleBuilders.values()].flatMap(x=>x.snapshot())
+  });
 });
 
 app.post("/api/tick",(req,res)=>{
@@ -149,7 +175,9 @@ app.get("/api/instruments/upstox",async(_req,res)=>{
     const {loadUpstoxInstruments}=await import("./instruments.js");
     const instruments=await loadUpstoxInstruments();
     res.json({ok:true,instruments});
-  }catch(e){res.status(503).json({ok:false,error:e.message});}
+  }catch(e){
+    res.status(503).json({ok:false,error:e.message});
+  }
 });
 
 app.get("/api/signal/:instrumentKey",(req,res)=>{
@@ -164,8 +192,17 @@ app.get("/api/signal/:instrumentKey",(req,res)=>{
 });
 
 app.get("/api/config",(_req,res)=>res.json({
-  marketData:{angelOne:Boolean(process.env.ANGEL_API_KEY),upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)},
-  trading:{enabled:false},interval:"5m"
+  marketData:{
+    angelOne:Boolean(
+      process.env.ANGEL_API_KEY &&
+      process.env.ANGEL_CLIENT_CODE &&
+      process.env.ANGEL_FEED_TOKEN &&
+      process.env.ANGEL_AUTH_TOKEN
+    ),
+    upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+  },
+  trading:{enabled:false},
+  interval:"5m"
 }));
 
 app.listen(port,"0.0.0.0",async()=>{
