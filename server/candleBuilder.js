@@ -48,7 +48,16 @@ export class CandleBuilder {
       const completed=c ? {...c, complete:true, timestamp:c.start} : null;
       if(completed) this._addCompleted(completed);
       c={instrumentKey:key,start,open:price,high:price,low:price,close:price,
-         volume:Number(tick.volumeDelta ?? 0)||0};
+         volume:0};
+      const initialCumulative=Number(tick.volume);
+      if(Number.isFinite(initialCumulative) && initialCumulative>=0){
+        const previous=this.lastCumulativeVolume.get(mapKey);
+        const delta=Number.isFinite(previous) && initialCumulative>=previous ? initialCumulative-previous : 0;
+        this.lastCumulativeVolume.set(mapKey,initialCumulative);
+        c.volume=Math.max(0,delta);
+      }else{
+        c.volume=Number(tick.volumeDelta ?? 0)||0;
+      }
       this.buckets.set(mapKey,c);
       return completed;
     }
