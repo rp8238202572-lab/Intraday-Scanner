@@ -78,9 +78,9 @@ async function scan(){
 function card(x,capital,risk){
  const s=x.signal,side=s.side||"";
  const cls=side==="LONG"?"buy":"avoid";
- const riskAmt=Math.abs(Number(s.price)-Number(s.stop))*Number(s.quantity),reward=Math.abs(Number(s.target)-Number(s.price))*Number(s.quantity);
+ const riskAmt=Math.abs(Number(s.price)-Number(s.stop))*Number(s.quantity),reward=Math.abs(Number(s.target)-Number(s.price))*Number(s.quantity),rr=riskAmt>0?reward/riskAmt:0;
  return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'</div><div class="tiny">'+money(s.price)+' • '+x.candleCount+' candles</div></div><div class="badge '+cls+'">'+s.signal+' • '+s.score+'/100</div></div>'+
- '<div class="meta"><div><small>ENTRY</small><b>'+money(s.price)+'</b></div><div><small>STOP</small><b>'+money(s.stop)+'</b></div><div><small>TARGET</small><b>'+money(s.target)+'</b></div><div><small>QTY</small><b>'+s.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(s.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+Number(s.volumeRatio).toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(s.vwap)+'</b></div></div>'+
+ '<div class="meta"><div><small>ENTRY</small><b>'+money(s.price)+'</b></div><div><small>STOP</small><b>'+money(s.stop)+'</b></div><div><small>TARGET</small><b>'+money(s.target)+'</b></div><div><small>QTY</small><b>'+s.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : '+round2(rr)+'</b></div><div><small>RSI</small><b>'+round2(s.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+Number(s.volumeRatio).toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(s.vwap)+'</b></div></div>'+
  '<div class="confidence"><i style="width:'+Math.min(100,Number(s.score))+'%"></i></div><div class="reason">'+(s.side==="LONG"?"Bullish":"Bearish")+' setup • score '+s.score+' • ATR '+round2(s.atr)+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • estimated reward '+money(reward)+' • trading execution is disabled</div></div>';
 }
 async function loadGrowwStatus(){
