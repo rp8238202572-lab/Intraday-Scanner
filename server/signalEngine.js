@@ -57,12 +57,12 @@ export function calculateSignal(candles,{capital=2000,riskPct=1,minScore=65}={})
   if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(rv>=55&&rv<=72)long+=15;if(volRatio>=1.2)long+=10;if(price>high20)long+=10;if(slope>0&&price>prev)long+=5;
   if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(rv<=45&&rv>=28)short+=15;if(volRatio>=1.2)short+=10;if(price<low20)short+=10;if(slope<0&&price<prev)short+=5;
 
-  const side=long>=short?"LONG":"SHORT",score=Math.max(long,short);
+  const side=long>=short?"LONG":"SHORT",score=Math.max(long,short);\n  const checks=side==="LONG"?{trend:price>e21&&e9>e21,vwap:price>vw,momentum:rv>=55&&rv<=72,volume:volRatio>=1.2,breakout:price>high20}:{trend:price<e21&&e9<e21,vwap:price<vw,momentum:rv<=45&&rv>=28,volume:volRatio>=1.2,breakout:price<low20};\n  const reasons=[];\n  if(checks.trend) reasons.push("Trend");\n  if(checks.vwap) reasons.push("VWAP");\n  if(checks.momentum) reasons.push("RSI");\n  if(checks.volume) reasons.push("Volume");\n  if(checks.breakout) reasons.push("Breakout");
   if(!volumeReady)return {
     signal:"NO_TRADE",score:0,price,side,
     reason:"Volume data is not ready for the latest completed 5-minute candle."
   };
-  if(score<minScore)return {signal:"NO_TRADE",score,price,side};
+  if(score<minScore)return {signal:"NO_TRADE",score,price,side,checks,reasons,reason:"Setup score is below the selected minimum."};
 
   const stopDist=Math.max(a*1.1,price*.004),riskMoney=capital*riskPct/100;
   const qty=Math.max(0,Math.min(Math.floor(riskMoney/stopDist),Math.floor(capital/price)));
