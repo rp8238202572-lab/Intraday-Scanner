@@ -12,6 +12,7 @@ export class CandleBuilder {
   }
 
   seed(candles=[]){
+    const incoming=new Map();
     for(const x of candles){
       if(!x || !Number.isFinite(Number(x.timestamp))) continue;
       const c={
@@ -21,10 +22,11 @@ export class CandleBuilder {
         low:Number(x.low), close:Number(x.close),
         volume:Number(x.volume)||0, complete:true
       };
-      if([c.open,c.high,c.low,c.close].every(Number.isFinite)) this.history.push(c);
+      if([c.open,c.high,c.low,c.close].every(Number.isFinite)) incoming.set(c.start,c);
     }
-    this.history.sort((a,b)=>a.start-b.start);
-    this.history=this.history.slice(-this.maxCandles);
+    const merged=new Map(this.history.map(c=>[c.start,c]));
+    for(const c of incoming.values()) merged.set(c.start,c);
+    this.history=[...merged.values()].sort((a,b)=>a.start-b.start).slice(-this.maxCandles);
   }
 
   update(tick){
