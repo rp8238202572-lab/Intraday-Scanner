@@ -35,7 +35,7 @@ async function getSignal(symbol,capital,risk,minScore,instruments){
  const body=await r.json();
  if(!body.ok)throw Error(body.error||"Signal unavailable");
  if(!body.signal)return {symbol,candleCount:body.candleCount,signal:null};
- return {symbol,candleCount:body.candleCount,...body.signal};
+ return {symbol,candleCount:body.candleCount,signal:body.signal};
 }
 async function scan(){
  const btn=document.getElementById("scan"),out=document.getElementById("results"),mi=marketInfo();
