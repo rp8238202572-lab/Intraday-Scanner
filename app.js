@@ -1,5 +1,5 @@
 const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL","HINDUNILVR","BAJFINANCE","HCLTECH","WIPRO","TECHM","ULTRACEMCO","ASIANPAINT","TITAN","COALINDIA","ONGC"];
-let refreshTimer=null,liveSetupTimer=null,lastScanAt=0,instrumentsCache=null,activeSetups=[],scanBusy=false;
+let refreshTimer=null,liveSetupTimer=null,paperTimer=null,lastScanAt=0,instrumentsCache=null,activeSetups=[],scanBusy=false,paperTrades=loadPaperTrades();
 
 function round2(x){return Math.round(Number(x)*100)/100}
 function money(x){return "₹"+round2(x).toLocaleString("en-IN")}
@@ -27,6 +27,44 @@ const NSE_HOLIDAYS_2026={
  "2026-11-24":"Guru Nanak Jayanti",
  "2026-12-25":"Christmas"
 };
+function loadPaperTrades(){try{return JSON.parse(localStorage.getItem("paperTrades")||"[]")}catch{return[]}}
+function savePaperTrades(){localStorage.setItem("paperTrades",JSON.stringify(paperTrades))}
+function startPaperTrade(symbol){
+ const s=activeSetups.find(x=>x.symbol===symbol)?.signal;
+ if(!s||s.signal==="NO_TRADE")return;
+ if(paperTrades.some(x=>x.symbol===symbol&&x.status==="OPEN")){setStatus(symbol+" paper trade already open.");return}
+ paperTrades.unshift({id:Date.now(),symbol,side:s.side,entry:Number(s.price),stop:Number(s.stop),target:Number(s.target),quantity:Number(s.quantity),openedAt:new Date().toISOString(),status:"OPEN",lastPrice:Number(s.price),pnl:0});
+ savePaperTrades();renderPaperTrades();setStatus(symbol+" paper trade started • no real order placed.");
+}
+function closePaperTrade(id,price,reason){
+ const t=paperTrades.find(x=>x.id===id);if(!t||t.status!=="OPEN")return;
+ t.lastPrice=Number(price);t.pnl=(t.side==="LONG"?(t.lastPrice-t.entry):(t.entry-t.lastPrice))*t.quantity;t.status="CLOSED";t.closedAt=new Date().toISOString();t.closeReason=reason;savePaperTrades();
+}
+function clearClosedPaperTrades(){paperTrades=paperTrades.filter(x=>x.status==="OPEN");savePaperTrades();renderPaperTrades()}
+function paperPnl(t){return (t.side==="LONG"?(t.lastPrice-t.entry):(t.entry-t.lastPrice))*t.quantity}
+function renderPaperTrades(){
+ const el=document.getElementById("paperTrades");if(!el)return;
+ if(!paperTrades.length){el.innerHTML='<div class="card"><div class="market"><b>Paper trades</b><span class="pill closed">NONE</span></div><div class="tiny" style="margin-top:5px">Tap “Paper Trade” on a setup to track it without placing a real order.</div></div>';return}
+ const open=paperTrades.filter(x=>x.status==="OPEN"),closed=paperTrades.filter(x=>x.status==="CLOSED");
+ const cards=paperTrades.map(t=>'<div class="stock"><div class="stocktop"><div><div class="sym">'+t.symbol+'</div><div class="tiny">'+t.side+' • '+new Date(t.openedAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+' IST</div></div><div class="badge '+(t.status==="OPEN"?"buy":"wait")+'">'+t.status+'</div></div><div class="meta"><div><small>ENTRY</small><b>'+money(t.entry)+'</b></div><div><small>LIVE</small><b>'+money(t.lastPrice)+'</b></div><div><small>QTY</small><b>'+t.quantity+'</b></div><div><small>SL</small><b>'+money(t.stop)+'</b></div><div><small>TARGET</small><b>'+money(t.target)+'</b></div><div><small>P&L</small><b class="'+(paperPnl(t)>=0?"green":"red")+'">'+money(paperPnl(t))+'</b></div></div>'+(t.status==="CLOSED"?'<div class="tiny" style="margin-top:7px">Closed: '+(t.closeReason||"manual")+'</div>':'')+'</div>').join("");
+ el.innerHTML='<div class="card"><div class="market"><b>Paper trades</b><span class="pill open">'+open.length+' OPEN • '+closed.length+' CLOSED</span></div><div class="tiny" style="margin-top:5px">Simulation only • no broker order is sent.</div></div>'+cards+(closed.length?'<button class="secondary" onclick="clearClosedPaperTrades()">Clear closed trades</button>':'');
+}
+async function updatePaperTrades(){
+ const open=paperTrades.filter(x=>x.status==="OPEN");if(!open.length)return;
+ try{
+  const instruments=await loadInstruments();
+  for(const t of open){
+   const r=await getSignal(t.symbol,0,1,0,instruments),s=r.signal;
+   const price=Number(s?.price);
+   if(!Number.isFinite(price))continue;
+   t.lastPrice=price;t.pnl=paperPnl(t);
+   if(t.side==="LONG"&&(price<=t.stop||price>=t.target))closePaperTrade(t.id,price,price<=t.stop?"STOP LOSS":"TARGET");
+   if(t.side==="SHORT"&&(price>=t.stop||price<=t.target))closePaperTrade(t.id,price,price>=t.stop?"STOP LOSS":"TARGET");
+  }
+  savePaperTrades();renderPaperTrades();
+ }catch{}
+}
+function updatePaperTimer(){clearInterval(paperTimer);paperTimer=setInterval(updatePaperTrades,15000)}
 function marketInfo(){
  const d=nowIST(),day=d.getDay(),m=d.getHours()*60+d.getMinutes(),key=dateKey(d);
  const holiday=Boolean(NSE_HOLIDAYS_2026[key]);
@@ -186,4 +224,4 @@ function updateAutoRefresh(){
  },300000);
 }
 document.getElementById("autoRefresh")?.addEventListener("change",updateAutoRefresh);
-marketStatus();setInterval(()=>{marketStatus();updateLiveSetupTimer()},30000);loadRuntimeStatus();loadGrowwStatus();setInterval(loadRuntimeStatus,15000);setInterval(loadGrowwStatus,30000);
+marketStatus();setInterval(()=>{marketStatus();updateLiveSetupTimer()},30000);loadRuntimeStatus();loadGrowwStatus();renderPaperTrades();updatePaperTimer();setInterval(updatePaperTrades,30000);loadGrowwStatus();setInterval(loadRuntimeStatus,15000);setInterval(loadGrowwStatus,30000);
