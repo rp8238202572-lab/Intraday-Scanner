@@ -41,39 +41,34 @@ async function scan(){
  const btn=document.getElementById("scan"),out=document.getElementById("results"),mi=marketInfo();
  const capital=Number(document.getElementById("capital").value),risk=Number(document.getElementById("risk").value),minScore=Number(document.getElementById("minScore").value),maxTrades=Number(document.getElementById("maxTrades").value);
  if(!Number.isFinite(capital)||capital<500||!Number.isFinite(risk)||risk<=0||risk>5){setStatus("Enter valid capital and risk (0.25%–5%).");return}
- btn.disabled=true;out.innerHTML="";let done=0,errors=0;
+ btn.disabled=true;out.innerHTML="";
  try{
-   const instruments=await loadInstruments();
-   setStatus("Loading live/historical broker signals for "+WATCH.length+" stocks…");
+   const instruments=await loadInstruments();setStatus("Loading live/historical broker signals for "+WATCH.length+" stocks…");
+   let done=0,errors=0;
    const results=await Promise.all(WATCH.map(async s=>{try{return await getSignal(s,capital,risk,minScore,instruments)}catch(e){errors++;return {symbol:s,error:e.message,candleCount:0,signal:null,unavailable:true}}finally{done++;setStatus("Scanning… "+done+"/"+WATCH.length)}}));
-   const ready=results.filter(x=>x&&Number(x.candleCount)>=50);
-   const noSignal=ready.filter(x=>!x.signal);
-   const signalReady=ready.filter(x=>x.signal);
-   const quantityReady=signalReady.filter(x=>Number(x.signal.quantity)>0);
-   const belowScore=quantityReady.filter(x=>Number(x.signal.score)<minScore);
-   const candidates=quantityReady.filter(x=>Number(x.signal.score)>=minScore);
+   const ready=results.filter(x=>x&&!x.unavailable&&Number(x.candleCount)>=50);
+   const signalCalculated=results.filter(x=>x&&!x.unavailable&&x.signal);
+   const noSetup=signalCalculated.filter(x=>x.signal.signal==="NO_TRADE"&&x.signal.diagnostics?.reasonCode==="NO_SETUP");
+   const belowScore=signalCalculated.filter(x=>x.signal.diagnostics?.reasonCode==="SCORE_BELOW_MIN");
+   const volumeNotReady=signalCalculated.filter(x=>x.signal.diagnostics?.reasonCode==="VOLUME_NOT_READY");
+   const qtyZero=signalCalculated.filter(x=>x.signal.diagnostics?.reasonCode==="QUANTITY_ZERO");
+   const candidates=signalCalculated.filter(x=>x.signal.signal!=="NO_TRADE"&&Number(x.signal.quantity)>0&&Number(x.signal.score)>=minScore);
    const found=candidates.sort((a,b)=>Number(b.signal.score)-Number(a.signal.score)).slice(0,maxTrades);
-   const unavailableDetails=results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ") || "None";
-   const diagnostics='<div class="card"><div class="row"><span>Market scan diagnostics</span><b class="blue">'+WATCH.length+' stocks</b></div>'+
-     '<div class="row"><span>History ready (50+ candles)</span><b class="green">'+ready.length+'</b></div>'+
-     '<div class="row"><span>Signal calculated</span><b>'+signalReady.length+'</b></div>'+
-     '<div class="row"><span>No setup from rules</span><b>'+noSignal.length+'</b></div>'+
-     '<div class="row"><span>Score below '+minScore+'</span><b class="yellow">'+belowScore.length+'</b></div>'+
-     '<div class="row"><span>Valid signals</span><b class="green">'+candidates.length+'</b></div>'+
-     '<div class="row"><span>Unavailable / request error</span><b class="red">'+errors+'</b></div>'+
-     '<div class="tiny">Unavailable stocks: '+unavailableDetails+'</div>'+
-     '<div class="tiny" style="margin-top:8px">A stock is shown only when history is ready, a signal is calculated, quantity is above zero, and its score meets the selected minimum.</div></div>';
+   const reasonMap={};
+   for(const x of signalCalculated){const d=x.signal.diagnostics;if(d?.reasonCode&&d.reasonCode!=="VALID")reasonMap[d.reasonCode]=(reasonMap[d.reasonCode]||0)+1;}
+   for(const x of results.filter(x=>x?.unavailable))reasonMap.REQUEST_ERROR=(reasonMap.REQUEST_ERROR||0)+1;
+   const labels={SCORE_BELOW_MIN:"Score below minimum",VOLUME_NOT_READY:"Volume data not ready",QUANTITY_ZERO:"Quantity = 0",INSUFFICIENT_CANDLES:"Insufficient candles",INDICATOR_DATA:"Indicator data invalid",INVALID_CANDLES:"Invalid candle data",NO_SETUP:"No setup conditions met",REQUEST_ERROR:"Request / data error"};
+   const topReasons=Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<span class="diagreason"><b>'+v+'×</b> '+(labels[k]||k)+'</span>').join('')||'<span class="diagreason"><b>0×</b> No rejection reasons</span>';
+   const unavailableDetails=results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ")||"None";
+   const diagnostics='<div class="card"><div class="row"><span>Market scan diagnostics</span><b class="blue">'+WATCH.length+' stocks</b></div><div class="row"><span>History ready (50+ candles)</span><b class="green">'+ready.length+'</b></div><div class="row"><span>Signal calculated</span><b>'+signalCalculated.length+'</b></div><div class="row"><span>No setup from rules</span><b>'+noSetup.length+'</b></div><div class="row"><span>Score below '+minScore+'</span><b class="yellow">'+belowScore.length+'</b></div><div class="row"><span>Volume not ready</span><b class="yellow">'+volumeNotReady.length+'</b></div><div class="row"><span>Quantity = 0</span><b class="yellow">'+qtyZero.length+'</b></div><div class="row"><span>Valid signals</span><b class="green">'+candidates.length+'</b></div><div class="row"><span>Unavailable / request error</span><b class="red">'+errors+'</b></div><div class="tiny" style="margin-top:8px"><b>Top rejection reasons</b></div><div class="diagreasons">'+topReasons+'</div><div class="tiny" style="margin-top:8px">Unavailable stocks: '+unavailableDetails+'</div><div class="tiny" style="margin-top:8px">Each stock now returns its exact rejection reason plus price, EMA, RSI, VWAP, volume ratio, score and checklist values. Trading execution is disabled.</div></div>';
    if(!found.length){
-     out.innerHTML=diagnostics+'<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+(mi.open?"No stock currently passes the configured score/risk rules. Do not force a trade.":"Market is closed. Historical broker candles are loaded, but live entries should be evaluated during the regular session.")+'</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • Valid signals: '+candidates.length+' • Minimum candles: 50</div></div>';
+     const detail=signalCalculated.map(x=>{const d=x.signal?.diagnostics;return d?.reason?x.symbol+": "+d.reason:null}).filter(Boolean).slice(0,6).join(" • ");
+     out.innerHTML=diagnostics+'<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+(mi.open?"No stock currently passes the configured score/risk rules. Do not force a trade.":"Market is closed. Historical broker candles are loaded, but live entries should be evaluated during the regular session.")+'</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • Valid signals: '+candidates.length+' • Minimum candles: 50</div>'+(detail?'<div class="tiny" style="margin-top:7px"><b>Examples:</b> '+detail+'</div>':'')+'</div>';
    }else{
      out.innerHTML=diagnostics+'<div class="card"><div class="market"><b>'+found.length+' setup(s) found</b><span class="pill open">BROKER DATA</span></div><div class="tiny" style="margin-top:5px">Signals are calculated by the backend from Upstox 5-minute candles.</div></div>'+found.map(x=>card(x,capital,risk)).join("");
    }
-   lastScanAt=Date.now();
-   setStatus("Scan complete • "+found.length+" setup(s) shown • "+errors+" unavailable");
- }catch(e){
-   out.innerHTML='<div class="card"><div class="stocktop"><b>SCANNER ERROR</b><span class="badge avoid">CHECK DATA</span></div><div class="reason">'+e.message+'</div></div>';
-   setStatus("Scanner stopped safely");
- }finally{btn.disabled=false}
+   lastScanAt=Date.now();setStatus("Scan complete • "+found.length+" setup(s) shown • "+errors+" unavailable");
+ }catch(e){out.innerHTML='<div class="card"><div class="stocktop"><b>SCANNER ERROR</b><span class="badge avoid">CHECK DATA</span></div><div class="reason">'+e.message+'</div></div>';setStatus("Scanner stopped safely");}finally{btn.disabled=false}
 }
 function card(x,capital,risk){
  const s=x.signal,side=s.side||"";
