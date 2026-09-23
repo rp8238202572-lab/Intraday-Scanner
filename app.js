@@ -45,7 +45,7 @@ async function scan(){
  try{
    const instruments=await loadInstruments();
    setStatus("Loading live/historical broker signals for "+WATCH.length+" stocks…");
-   const results=await Promise.all(WATCH.map(async s=>{try{return await getSignal(s,capital,risk,minScore,instruments)}catch(e){errors++;return null}finally{done++;setStatus("Scanning… "+done+"/"+WATCH.length)}}));
+   const results=await Promise.all(WATCH.map(async s=>{try{return await getSignal(s,capital,risk,minScore,instruments)}catch(e){errors++;return {symbol:s,error:e.message,candleCount:0,signal:null,unavailable:true}}finally{done++;setStatus("Scanning… "+done+"/"+WATCH.length)}}));
    const ready=results.filter(x=>x&&Number(x.candleCount)>=50);
    const noSignal=ready.filter(x=>!x.signal);
    const signalReady=ready.filter(x=>x.signal);
@@ -60,6 +60,7 @@ async function scan(){
      '<div class="row"><span>Score below '+minScore+'</span><b class="yellow">'+belowScore.length+'</b></div>'+
      '<div class="row"><span>Valid signals</span><b class="green">'+candidates.length+'</b></div>'+
      '<div class="row"><span>Unavailable / request error</span><b class="red">'+errors+'</b></div>'+
+     '<div class="tiny">Unavailable stocks: '+results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ")||"None"+'</div>'+
      '<div class="tiny" style="margin-top:8px">A stock is shown only when history is ready, a signal is calculated, quantity is above zero, and its score meets the selected minimum.</div></div>';
    if(!found.length){
      out.innerHTML=diagnostics+'<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+(mi.open?"No stock currently passes the configured score/risk rules. Do not force a trade.":"Market is closed. Historical broker candles are loaded, but live entries should be evaluated during the regular session.")+'</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • Valid signals: '+candidates.length+' • Minimum candles: 50</div></div>';
