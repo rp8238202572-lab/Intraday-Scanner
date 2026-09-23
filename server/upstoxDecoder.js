@@ -27,9 +27,12 @@ export async function decodeUpstoxFeed(buffer) {
     if (!ltpc || ltpc.ltp == null) continue;
 
     const full = feed.fullFeed?.marketFF;
+    const firstLevel = feed.firstLevelWithGreeks;
     const currentTs = message.currentTs ? Number(message.currentTs) : Date.now();
     const timestamp = ltpc.ltt ? Number(ltpc.ltt) : currentTs;
-    const volumeToday = full?.vtt != null ? Number(full.vtt) : null;
+    const volumeToday =
+      full?.vtt != null ? Number(full.vtt) :
+      firstLevel?.vtt != null ? Number(firstLevel.vtt) : null;
 
     out.push({
       broker: "upstox",
@@ -37,7 +40,8 @@ export async function decodeUpstoxFeed(buffer) {
       ltp: Number(ltpc.ltp),
       timestamp,
       volume: volumeToday,
-      volumeDelta: ltpc.ltq != null ? Number(ltpc.ltq) : null
+      volumeDelta: ltpc.ltq != null ? Number(ltpc.ltq) : null,
+      feedMode: full ? "full_d5" : (firstLevel ? "first_level_greeks" : "ltpc")
     });
   }
   return out;
