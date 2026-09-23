@@ -93,7 +93,7 @@ async function startConfiguredStreams(){
       activeStreams.upstox=await createUpstoxStream({
         accessToken:process.env.UPSTOX_ACCESS_TOKEN,
         instrumentKeys:keys,
-        mode:"full_d5",
+        mode:"full",
         onStatus:s=>{streamState.upstox=s; console.log("Upstox:",s);},
         onTick:pushLiveTick
       });
