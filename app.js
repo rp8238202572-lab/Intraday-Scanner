@@ -83,6 +83,19 @@ function card(x,capital,risk){
  '<div class="meta"><div><small>ENTRY</small><b>'+money(s.price)+'</b></div><div><small>STOP</small><b>'+money(s.stop)+'</b></div><div><small>TARGET</small><b>'+money(s.target)+'</b></div><div><small>QTY</small><b>'+s.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(s.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+Number(s.volumeRatio).toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(s.vwap)+'</b></div></div>'+
  '<div class="confidence"><i style="width:'+Math.min(100,Number(s.score))+'%"></i></div><div class="reason">'+(s.side==="LONG"?"Bullish":"Bearish")+' setup • score '+s.score+' • ATR '+round2(s.atr)+'</div><div class="tiny" style="margin-top:7px">Capital '+money(capital)+' • planned risk '+risk+'% • estimated reward '+money(reward)+' • trading execution is disabled</div></div>';
 }
+async function loadGrowwStatus(){
+ try{
+  const r=await fetch("/api/groww/status",{cache:"no-store"});
+  const s=await r.json();
+  const el=document.getElementById("growwStatus");
+  if(!el)return;
+  el.textContent=s.configured?"CONFIGURED":"NOT CONNECTED";
+  el.className=s.configured?"green":"yellow";
+ }catch(e){
+  const el=document.getElementById("growwStatus");
+  if(el){el.textContent="CHECK FAILED";el.className="red";}
+ }
+}
 async function loadRuntimeStatus(){
  try{
   const r=await fetch("/api/status",{cache:"no-store"});
@@ -116,4 +129,4 @@ function updateAutoRefresh(){
  },300000);
 }
 document.getElementById("autoRefresh")?.addEventListener("change",updateAutoRefresh);
-marketStatus();setInterval(marketStatus,30000);loadRuntimeStatus();setInterval(loadRuntimeStatus,15000);
+marketStatus();setInterval(marketStatus,30000);loadRuntimeStatus();loadGrowwStatus();setInterval(loadRuntimeStatus,15000);setInterval(loadGrowwStatus,30000);
