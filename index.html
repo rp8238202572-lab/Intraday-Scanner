@@ -36,7 +36,7 @@
 <div class="row"><span>Risk</span><span>ATR-based stop + position sizing</span></div>
 <div class="tiny" style="margin-top:8px">A “BUY SETUP” means the rules currently align; it is not a guarantee that the trade will make money. If no stock passes the threshold, the app shows NO TRADE.</div>
 </div>
-<div class="card tiny"><b>Data source & safety:</b> The current web build reads Yahoo Finance chart data through a browser CORS proxy. This is not an exchange-grade real-time feed. The scanner now fails closed when market data is stale/unavailable instead of pretending it is live. For actual live trading, we will replace this layer with an authorized broker/exchange data API.</div>
+<div class="card tiny"><b>Data source & safety:</b> The scanner now uses the authorized Upstox market-data feed and backend 5-minute candles. Historical candles are loaded for signal calculation and live candles update during market hours. Order execution is disabled.</div>
 </div>
 </div>
 <script>
