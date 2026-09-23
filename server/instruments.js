@@ -21,9 +21,10 @@ export async function loadUpstoxInstruments(url="https://assets.upstox.com/marke
   const map=new Map();
   for(const x of rows){
     if(x.segment!=="NSE_EQ" || x.instrument_type!=="EQ") continue;
-    let symbol=String(x.trading_symbol||"").toUpperCase();
-    // Upstox may expose Tata Motors under the current post-demerger symbol.
-    if(symbol==="TATAMOTORS" || symbol==="TMPV") symbol="TATAMOTORS";
+    const rawSymbol=String(x.trading_symbol||"").toUpperCase();
+    // After the Tata Motors demerger, the passenger-vehicle NSE symbol is TMPV.
+    // Keep our app label TATAMOTORS mapped specifically to TMPV.
+    const symbol=rawSymbol==="TMPV" ? "TATAMOTORS" : rawSymbol;
     if(WATCH.includes(symbol) && !map.has(symbol)) map.set(symbol,String(x.instrument_key));
   }
   return Object.fromEntries(map);
