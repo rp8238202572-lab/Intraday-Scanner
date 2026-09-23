@@ -31,6 +31,8 @@ app.get("/health", (_req,res) => res.json({
 
 const streamState={angelOne:"disabled",upstox:"disabled"};
 const activeStreams={angelOne:null,upstox:null};
+const lastTickAt={angelOne:null,upstox:null};
+const tickCounts={angelOne:0,upstox:0};
 
 const candleBuilders=new Map();
 function candleKey(t){ return String(t?.instrumentKey ?? t?.symbol ?? t?.token ?? "unknown"); }
@@ -43,6 +45,11 @@ function getBuilder(key){
 function pushLiveTick(rawTick){
   const tick=normalizeTick(rawTick);
   if(!tick) return null;
+  const broker=String(tick.broker||"unknown");
+  if(broker in lastTickAt){
+    lastTickAt[broker]=new Date(Number(tick.timestamp)||Date.now()).toISOString();
+    tickCounts[broker]++;
+  }
   return getBuilder(candleKey(tick)).update(tick);
 }
 
@@ -139,8 +146,33 @@ app.get("/api/angelone/callback",(req,res)=>{
 app.get("/api/streams",(_req,res)=>res.json({
   ok:true,
   streams:streamState,
-  live:Object.values(activeStreams).some(Boolean)
+  live:Object.values(activeStreams).some(Boolean),
+  lastTickAt,
+  tickCounts
 }));
+
+app.get("/api/status",(_req,res)=>{
+  const builders=[...candleBuilders.entries()].map(([key,builder])=>({
+    instrumentKey:key,
+    candles:builder.getCandles().length,
+    current:builder.snapshot().at(-1)?.close ?? null
+  }));
+  res.json({
+    ok:true,
+    time:new Date().toISOString(),
+    streams:streamState,
+    brokers:{
+      angelOne:Boolean(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN && process.env.ANGEL_AUTH_TOKEN),
+      upstox:Boolean(process.env.UPSTOX_ACCESS_TOKEN)
+    },
+    lastTickAt,
+    tickCounts,
+    instrumentCount:builders.length,
+    readyCandles:builders.filter(x=>x.candles>=50).length,
+    interval:"5m",
+    tradingEnabled:false
+  });
+});
 
 app.get("/api/candles",(_req,res)=>{
   res.json({
@@ -205,7 +237,17 @@ app.get("/api/config",(_req,res)=>res.json({
   interval:"5m"
 }));
 
-app.listen(port,"0.0.0.0",async()=>{
+const server=app.listen(port,"0.0.0.0",async()=>{
   console.log("Intraday Scanner broker gateway listening on "+port);
   await startConfiguredStreams();
 });
+
+function shutdown(signal){
+  console.log("Shutting down on "+signal);
+  for(const stream of Object.values(activeStreams)){
+    try{stream?.close?.();}catch{}
+  }
+  server.close(()=>process.exit(0));
+}
+process.once("SIGTERM",()=>shutdown("SIGTERM"));
+process.once("SIGINT",()=>shutdown("SIGINT"));
