@@ -44,8 +44,11 @@ function pushLiveTick(rawTick){
 async function seedUpstoxHistory(instruments){
   const entries=Object.entries(instruments||{});
   if(!entries.length) return;
-  const toDate=new Date().toISOString().slice(0,10);
-  const fromDate=new Date(Date.now()-10*24*60*60*1000).toISOString().slice(0,10);
+  // Use completed trading days for the historical seed. Querying "today" too
+  // early in the session can return little/no completed 5-minute history.
+  const now=Date.now();
+  const toDate=new Date(now-24*60*60*1000).toISOString().slice(0,10);
+  const fromDate=new Date(now-10*24*60*60*1000).toISOString().slice(0,10);
   let loaded=0;
 
   for(const [symbol,instrumentKey] of entries){
