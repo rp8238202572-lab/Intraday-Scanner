@@ -16,6 +16,13 @@
 <header><h1>📈 Intraday Scanner</h1><div class="sub">NSE • rule-based setup scanner • not a guaranteed prediction</div></header>
 <div class="wrap"><div class="card hero"><h2>🤝 Beginner Mode</h2><p>Tu sirf capital enter kar. Baaki scanner trend, momentum, volume, VWAP, stop-loss aur quantity ko check karega. <b>Signal mile tabhi trade consider karna.</b></p></div><div class="card market"><span><b>Market status</b><small id="marketTime" class="tiny" style="display:block">Checking IST time…</small></span><span id="marketBadge" class="pill closed">CHECKING</span></div>
 <div class="card">
+<div class="row"><span>Broker data</span><b id="brokerStatus" class="yellow">CHECKING…</b></div>
+<div class="row"><span>Live ticks</span><b id="tickStatus">—</b></div>
+<div class="row"><span>5m candles ready</span><b id="candleStatus">—</b></div>
+<div class="row"><span>Last data update</span><b id="lastDataStatus">—</b></div>
+<div class="tiny" style="margin-top:7px">Order execution is disabled. This app is currently for market-data scanning and paper-style setup analysis.</div>
+</div>
+<div class="card">
 <div class="grid">
 <div><label>Capital (₹)</label><input id="capital" type="number" min="500" step="100" value="2000"></div>
 <div><label>Risk / trade (%)</label><input id="risk" type="number" min=".25" max="5" step=".25" value="1"></div>
@@ -36,7 +43,7 @@
 <div class="row"><span>Risk</span><span>ATR-based stop + position sizing</span></div>
 <div class="tiny" style="margin-top:8px">A “BUY SETUP” means the rules currently align; it is not a guarantee that the trade will make money. If no stock passes the threshold, the app shows NO TRADE.</div>
 </div>
-<div class="card tiny"><b>Data source & safety:</b> The scanner now uses the authorized Upstox market-data feed and backend 5-minute candles. Historical candles are loaded for signal calculation and live candles update during market hours. Order execution is disabled.<br><span class="blue">Scanner build: diagnostics-v2</span></div>
+<div class="card tiny"><b>Data source & safety:</b> The scanner uses the authorized broker market-data feed and backend 5-minute candles. Historical candles are loaded for signal calculation and live candles update during market hours. Order execution is disabled.<br><span class="blue">Scanner build: diagnostics-v3</span></div>
 </div>
 </div>
 <script src="./app.js" defer></script>
