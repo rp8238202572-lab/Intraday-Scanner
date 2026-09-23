@@ -1,4 +1,6 @@
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import { CandleBuilder } from "./candleBuilder.js";
 import { normalizeTick } from "./marketData.js";
@@ -8,17 +10,13 @@ import { fetchUpstoxCandles } from "./upstoxHistorical.js";
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const webRoot = path.resolve(serverDir, "..");
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
+app.use(express.static(webRoot));
 
-app.get("/", (_req, res) => res.json({
-  ok: true,
-  service: "intraday-scanner-broker-gateway",
-  status: "running",
-  health: "/health",
-  streams: "/api/streams",
-  trading: { enabled: false }
-}));
+app.get("/", (_req, res) => res.sendFile(path.join(webRoot, "index.html")));
 
 app.get("/health", (_req,res) => res.json({
   ok:true, service:"intraday-scanner-broker-gateway", time:new Date().toISOString(),
