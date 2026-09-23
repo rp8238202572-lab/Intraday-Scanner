@@ -91,6 +91,7 @@ async function loadRuntimeStatus(){
   const configured=[];
   if(s.brokers?.upstox)configured.push("Upstox");
   if(s.brokers?.angelOne)configured.push("Angel One");
+  if(s.brokers?.groww)configured.push("Groww API");
   const states=Object.values(s.streams||{}).filter(Boolean);
   const live=states.some(x=>x==="connected"||x==="subscribed"||x==="ready_for_subscription");
   const last=Object.values(s.lastTickAt||{}).filter(Boolean).sort().at(-1);
