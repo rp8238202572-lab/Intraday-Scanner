@@ -53,6 +53,7 @@ async function scan(){
    const belowScore=quantityReady.filter(x=>Number(x.signal.score)<minScore);
    const candidates=quantityReady.filter(x=>Number(x.signal.score)>=minScore);
    const found=candidates.sort((a,b)=>Number(b.signal.score)-Number(a.signal.score)).slice(0,maxTrades);
+   const unavailableDetails=results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ") || "None";
    const diagnostics='<div class="card"><div class="row"><span>Market scan diagnostics</span><b class="blue">'+WATCH.length+' stocks</b></div>'+
      '<div class="row"><span>History ready (50+ candles)</span><b class="green">'+ready.length+'</b></div>'+
      '<div class="row"><span>Signal calculated</span><b>'+signalReady.length+'</b></div>'+
@@ -60,7 +61,7 @@ async function scan(){
      '<div class="row"><span>Score below '+minScore+'</span><b class="yellow">'+belowScore.length+'</b></div>'+
      '<div class="row"><span>Valid signals</span><b class="green">'+candidates.length+'</b></div>'+
      '<div class="row"><span>Unavailable / request error</span><b class="red">'+errors+'</b></div>'+
-     '<div class="tiny">Unavailable stocks: '+results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ")||"None"+'</div>'+
+     '<div class="tiny">Unavailable stocks: '+unavailableDetails+'</div>'+
      '<div class="tiny" style="margin-top:8px">A stock is shown only when history is ready, a signal is calculated, quantity is above zero, and its score meets the selected minimum.</div></div>';
    if(!found.length){
      out.innerHTML=diagnostics+'<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+(mi.open?"No stock currently passes the configured score/risk rules. Do not force a trade.":"Market is closed. Historical broker candles are loaded, but live entries should be evaluated during the regular session.")+'</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • Valid signals: '+candidates.length+' • Minimum candles: 50</div></div>';
