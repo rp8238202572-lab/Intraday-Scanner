@@ -110,10 +110,6 @@ async function scan(){
    }
    lastScanAt=Date.now();
    setStatus("Scan complete • "+found.length+" setup(s) shown • "+errors+" unavailable");
-     out.innerHTML='<div class="card"><div class="market"><b>'+found.length+' setup(s) found</b><span class="pill open">BROKER DATA</span></div><div class="tiny" style="margin-top:5px">Signals are calculated by the backend from Upstox 5-minute candles.</div></div>'+found.map(x=>card(x,capital,risk)).join("");
-   }
-   lastScanAt=Date.now();
-   setStatus("Scan complete • "+found.length+" setup(s) shown • "+errors+" unavailable");
  }catch(e){
    out.innerHTML='<div class="card"><div class="stocktop"><b>SCANNER ERROR</b><span class="badge avoid">CHECK DATA</span></div><div class="reason">'+e.message+'</div></div>';
    setStatus("Scanner stopped safely");
