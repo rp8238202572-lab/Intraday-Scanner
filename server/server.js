@@ -35,13 +35,14 @@ async function startConfiguredStreams(){
       const {createUpstoxStream}=await import("./upstox.js");
       const {loadUpstoxInstruments}=await import("./instruments.js");
       const instruments=await loadUpstoxInstruments();
+      const keys=Object.values(instruments);
       activeStreams.upstox=await createUpstoxStream({
         accessToken:process.env.UPSTOX_ACCESS_TOKEN,
+        instrumentKeys:keys,
+        mode:"ltpc",
         onStatus:s=>{streamState.upstox=s; console.log("Upstox:",s);},
         onTick:pushLiveTick
       });
-      const keys=Object.values(instruments);
-      activeStreams.upstox.subscribe({instrumentKeys:keys,mode:"ltpc"});
     }catch(e){streamState.upstox="error:"+e.message;console.error("Upstox stream:",e.message);}
   }
   if(process.env.ANGEL_API_KEY && process.env.ANGEL_CLIENT_CODE && process.env.ANGEL_FEED_TOKEN){
