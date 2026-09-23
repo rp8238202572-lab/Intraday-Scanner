@@ -1,20 +1,42 @@
 const WATCH=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","INFY","TCS","BHARTIARTL","LT","AXISBANK","KOTAKBANK","ITC","MARUTI","M&M","SUNPHARMA","TATAMOTORS","TATASTEEL","ADANIENT","NTPC","POWERGRID","BEL","HINDUNILVR","BAJFINANCE","HCLTECH","WIPRO","TECHM","ULTRACEMCO","ASIANPAINT","TITAN","COALINDIA","ONGC"];
-let refreshTimer=null,lastScanAt=0,instrumentsCache=null;
+let refreshTimer=null,liveSetupTimer=null,lastScanAt=0,instrumentsCache=null,activeSetups=[],scanBusy=false;
 
 function round2(x){return Math.round(Number(x)*100)/100}
 function money(x){return "₹"+round2(x).toLocaleString("en-IN")}
 function nowIST(){return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}))}
 function dateKey(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+const NSE_HOLIDAYS_2026={
+ "2026-01-15":"Municipal Corporation Election in Maharashtra",
+ "2026-01-26":"Republic Day",
+ "2026-02-19":"Chhatrapati Shivaji Maharaj Jayanti",
+ "2026-03-03":"Holi",
+ "2026-03-19":"Gudhi Padwa",
+ "2026-03-26":"Ram Navami",
+ "2026-03-31":"Mahavir Jayanti",
+ "2026-04-01":"Annual Bank Closing",
+ "2026-04-03":"Good Friday",
+ "2026-04-14":"Dr. Babasaheb Ambedkar Jayanti",
+ "2026-05-01":"Maharashtra Din / Buddha Pournima",
+ "2026-05-28":"Bakri Id",
+ "2026-06-26":"Muharram",
+ "2026-08-26":"Id-E-Milad",
+ "2026-09-14":"Ganesh Chaturthi",
+ "2026-10-02":"Mahatma Gandhi Jayanti",
+ "2026-10-20":"Dussehra",
+ "2026-11-10":"Diwali (Bali Pratipada)",
+ "2026-11-24":"Guru Nanak Jayanti",
+ "2026-12-25":"Christmas"
+};
 function marketInfo(){
- const d=nowIST(),day=d.getDay(),m=d.getHours()*60+d.getMinutes();
- const holiday=false;
+ const d=nowIST(),day=d.getDay(),m=d.getHours()*60+d.getMinutes(),key=dateKey(d);
+ const holiday=Boolean(NSE_HOLIDAYS_2026[key]);
  const open=!holiday&&day>=1&&day<=5&&m>=555&&m<930;
- return {d,open,holiday};
+ return {d,open,holiday,holidayName:NSE_HOLIDAYS_2026[key]||""};
 }
 function marketStatus(){
  const x=marketInfo(),d=x.d,b=document.getElementById("marketBadge");
  b.textContent=x.open?"MARKET OPEN":"MARKET CLOSED";b.className="pill "+(x.open?"open":"closed");
- document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30";
+ document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30"+(x.holiday?" • Holiday: "+x.holidayName:"");
 }
 function setStatus(t){document.getElementById("status").textContent=t}
 async function loadInstruments(){
@@ -38,6 +60,8 @@ async function getSignal(symbol,capital,risk,minScore,instruments){
  return {symbol,candleCount:body.candleCount,signal:body.signal};
 }
 async function scan(){
+ if(scanBusy)return;
+ scanBusy=true;
  const btn=document.getElementById("scan"),out=document.getElementById("results"),mi=marketInfo();
  const capital=Number(document.getElementById("capital").value),risk=Number(document.getElementById("risk").value),minScore=Number(document.getElementById("minScore").value),maxTrades=Number(document.getElementById("maxTrades").value);
  if(!Number.isFinite(capital)||capital<500||!Number.isFinite(risk)||risk<=0||risk>5){setStatus("Enter valid capital and risk (0.25%–5%).");return}
@@ -61,14 +85,52 @@ async function scan(){
    const topReasons=Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<span class="diagreason"><b>'+v+'×</b> '+(labels[k]||k)+'</span>').join('')||'<span class="diagreason"><b>0×</b> No rejection reasons</span>';
    const unavailableDetails=results.filter(x=>x&&x.unavailable).map(x=>x.symbol+" ("+x.error+")").join(", ")||"None";
    const diagnostics='<div class="card"><div class="row"><span>Market scan diagnostics</span><b class="blue">'+WATCH.length+' stocks</b></div><div class="row"><span>History ready (50+ candles)</span><b class="green">'+ready.length+'</b></div><div class="row"><span>Signal calculated</span><b>'+signalCalculated.length+'</b></div><div class="row"><span>No setup from rules</span><b>'+noSetup.length+'</b></div><div class="row"><span>Score below '+minScore+'</span><b class="yellow">'+belowScore.length+'</b></div><div class="row"><span>Volume not ready</span><b class="yellow">'+volumeNotReady.length+'</b></div><div class="row"><span>Quantity = 0</span><b class="yellow">'+qtyZero.length+'</b></div><div class="row"><span>Valid signals</span><b class="green">'+candidates.length+'</b></div><div class="row"><span>Unavailable / request error</span><b class="red">'+errors+'</b></div><div class="tiny" style="margin-top:8px"><b>Top rejection reasons</b></div><div class="diagreasons">'+topReasons+'</div><div class="tiny" style="margin-top:8px">Unavailable stocks: '+unavailableDetails+'</div><div class="tiny" style="margin-top:8px">Each stock now returns its exact rejection reason plus price, EMA, RSI, VWAP, volume ratio, score and checklist values. Trading execution is disabled.</div></div>';
+   activeSetups=found.map(x=>({symbol:x.symbol,candleCount:x.candleCount,signal:x.signal}));
    if(!found.length){
      const detail=signalCalculated.map(x=>{const d=x.signal?.diagnostics;return d?.reason?x.symbol+": "+d.reason:null}).filter(Boolean).slice(0,6).join(" • ");
      out.innerHTML=diagnostics+'<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">'+(mi.open?"No stock currently passes the configured score/risk rules. Do not force a trade.":"Market is closed. Historical broker candles are loaded, but live entries should be evaluated during the regular session.")+'</div><div class="tiny" style="margin-top:7px">Unavailable: '+errors+' • Valid signals: '+candidates.length+' • Minimum candles: 50</div>'+(detail?'<div class="tiny" style="margin-top:7px"><b>Examples:</b> '+detail+'</div>':'')+'</div>';
    }else{
-     out.innerHTML=diagnostics+'<div class="card"><div class="market"><b>'+found.length+' setup(s) found</b><span class="pill open">BROKER DATA</span></div><div class="tiny" style="margin-top:5px">Signals are calculated by the backend from Upstox 5-minute candles.</div></div>'+found.map(x=>card(x,capital,risk)).join("");
+     out.innerHTML=diagnostics+renderSetupSection(found,capital,risk);
    }
    lastScanAt=Date.now();setStatus("Scan complete • "+found.length+" setup(s) shown • "+errors+" unavailable");
  }catch(e){out.innerHTML='<div class="card"><div class="stocktop"><b>SCANNER ERROR</b><span class="badge avoid">CHECK DATA</span></div><div class="reason">'+e.message+'</div></div>';setStatus("Scanner stopped safely");}finally{btn.disabled=false}
+}
+function renderSetupSection(found,capital,risk){
+ return '<div id="liveSetups"><div class="card"><div class="market"><b>'+found.length+' setup(s) found</b><span class="pill open">LIVE DATA</span></div><div class="tiny" style="margin-top:5px">Live setup values refresh every 15 seconds while the NSE market is open.</div></div>'+found.map(x=>card(x,capital,risk)).join('')+'</div>';
+}
+async function refreshLiveSetups(){
+ if(scanBusy||!activeSetups.length||!marketInfo().open)return;
+ try{
+   const capital=Number(document.getElementById("capital").value),risk=Number(document.getElementById("risk").value),minScore=Number(document.getElementById("minScore").value);
+   const instruments=await loadInstruments();
+   const refreshed=await Promise.all(activeSetups.map(async x=>{
+     try{
+       const r=await getSignal(x.symbol,capital,risk,minScore,instruments);
+       const s=r.signal;
+       const valid=s&&s.signal!=="NO_TRADE"&&Number(s.quantity)>0&&Number(s.score)>=minScore;
+       return valid?{symbol:x.symbol,candleCount:r.candleCount,signal:s}:null;
+     }catch{return null}
+   }));
+   const valid=refreshed.filter(Boolean);
+   if(valid.length!==activeSetups.length){
+     activeSetups=valid;
+     setStatus("A setup changed or became invalid • rescanning market…");
+     await scan();
+     return;
+   }
+   activeSetups=valid;
+   const holder=document.getElementById("liveSetups");
+   if(holder){
+     holder.outerHTML=renderSetupSection(valid,capital,risk);
+     setStatus("Live setup values updated • "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})+" IST");
+   }
+ }catch(e){
+   setStatus("Live refresh waiting for broker data…");
+ }
+}
+function updateLiveSetupTimer(){
+ clearInterval(liveSetupTimer);liveSetupTimer=null;
+ if(marketInfo().open&&activeSetups.length)liveSetupTimer=setInterval(refreshLiveSetups,15000);
 }
 function card(x,capital,risk){
  const s=x.signal,side=s.side||"";
@@ -124,4 +186,4 @@ function updateAutoRefresh(){
  },300000);
 }
 document.getElementById("autoRefresh")?.addEventListener("change",updateAutoRefresh);
-marketStatus();setInterval(marketStatus,30000);loadRuntimeStatus();loadGrowwStatus();setInterval(loadRuntimeStatus,15000);setInterval(loadGrowwStatus,30000);
+marketStatus();setInterval(()=>{marketStatus();updateLiveSetupTimer()},30000);loadRuntimeStatus();loadGrowwStatus();setInterval(loadRuntimeStatus,15000);setInterval(loadGrowwStatus,30000);
