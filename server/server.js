@@ -276,7 +276,7 @@ app.get("/api/signal/:instrumentKey",(req,res)=>{
     riskPct:Number(req.query.risk)||1,
     minScore:Number(req.query.minScore)||65
   });
-  res.json({ok:true,instrumentKey:key,candleCount:candles.length,signal});
+  res.json({ok:true,instrumentKey:key,candleCount:candles.length,signal,diagnostics:signal?.diagnostics||null});
 });
 
 app.get("/api/config",(_req,res)=>res.json({
