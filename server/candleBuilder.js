@@ -49,8 +49,9 @@ export class CandleBuilder {
       if(completed) this._addCompleted(completed);
       c={instrumentKey:key,start,open:price,high:price,low:price,close:price,
          volume:0};
+      const hasCumulativeVolume=tick.volume !== null && tick.volume !== undefined && tick.volume !== "";
       const initialCumulative=Number(tick.volume);
-      if(Number.isFinite(initialCumulative) && initialCumulative>=0){
+      if(hasCumulativeVolume && Number.isFinite(initialCumulative) && initialCumulative>=0){
         const previous=this.lastCumulativeVolume.get(mapKey);
         const delta=Number.isFinite(previous) && initialCumulative>=previous ? initialCumulative-previous : 0;
         this.lastCumulativeVolume.set(mapKey,initialCumulative);
@@ -69,8 +70,9 @@ export class CandleBuilder {
     // Upstox full-feed volume is cumulative for the trading day.
     // Convert it to a per-tick delta so the live 5m candle volume
     // remains comparable with historical candle volume.
+    const hasCumulativeVolume=tick.volume !== null && tick.volume !== undefined && tick.volume !== "";
     const cumulative=Number(tick.volume);
-    if(Number.isFinite(cumulative) && cumulative>=0){
+    if(hasCumulativeVolume && Number.isFinite(cumulative) && cumulative>=0){
       const previous=this.lastCumulativeVolume.get(mapKey);
       const delta=Number.isFinite(previous) && cumulative>=previous
         ? cumulative-previous
