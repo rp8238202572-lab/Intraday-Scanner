@@ -70,7 +70,7 @@ test("hammer is detected in a declining context",()=>{
     candle(104,105,101,102),
     candle(102,103,99,100),
     candle(100,101,96,97),
-    candle(97.8,98.2,92,97.5)
+    candle(97.8,98.0,92,97.5)
   ];
   const p=detectCandlestickPattern(xs);
   assert.equal(p.name,"Hammer");
