@@ -133,7 +133,7 @@ export function calculateSignal(candles,{capital=2000,riskPct=1,minScore=65}={})
   const diagnosticsBase={
     completedCandles:completed.length,price,e9,e21,rsi:rv,atr:a,vwap:vw,volumeRatio:volRatio,avgVolume:avgVol,
     latestCompletedVolume,high20,low20,slope,longScore:long,shortScore:short,checks,reasons,
-    candlestickPattern:pattern.name,candlestickDirection:pattern.direction,candleConfirmation
+    candlestickPattern:pattern.name,candlestickDirection:pattern.direction,candleConfirmation,breadthDirection:price>prev?"ADVANCE":price<prev?"DECLINE":"UNCHANGED"
   };
 
   if(!volumeReady)return {signal:"NO_TRADE",score,price,side,checks,reasons,candlestickPattern:pattern.name,diagnostics:diag("VOLUME_NOT_READY","Volume data is not ready for the latest completed 5-minute candle.",diagnosticsBase)};
