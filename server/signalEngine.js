@@ -109,8 +109,8 @@ export function calculateSignal(candles,{capital=2000,riskPct=1,minScore=65}={})
   const previousE9=ema(closes.slice(0,-1),9),slope=Number.isFinite(previousE9)?e9-previousE9:0;
 
   let long=0,short=0;
-  if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(rv>=55&&rv<=72)long+=15;if(volRatio>=1.2)long+=15;if(price>high20)long+=10;if(slope>0&&price>prev)long+=5;
-  if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(rv<=45&&rv>=28)short+=15;if(volRatio>=1.2)short+=15;if(price<low20)short+=10;if(slope<0&&price<prev)short+=5;
+  if(price>e21)long+=20;if(e9>e21)long+=20;if(price>vw)long+=20;if(rv>=55&&rv<=72)long+=15;if(volRatio>=1.2)long+=10;if(price>high20)long+=10;if(slope>0&&price>prev)long+=5;
+  if(price<e21)short+=20;if(e9<e21)short+=20;if(price<vw)short+=20;if(rv<=45&&rv>=28)short+=15;if(volRatio>=1.2)short+=10;if(price<low20)short+=10;if(slope<0&&price<prev)short+=5;
 
   const side=long>=short?"LONG":"SHORT",scoreBase=Math.max(long,short);
   const pattern=detectCandlestickPattern(completed);
