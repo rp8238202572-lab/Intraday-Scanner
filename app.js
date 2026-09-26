@@ -3,6 +3,49 @@ let refreshTimer=null,liveSetupTimer=null,paperTimer=null,lastScanAt=0,instrumen
 
 function round2(x){return Math.round(Number(x)*100)/100}
 function money(x){return "₹"+round2(x).toLocaleString("en-IN")}
+function buildDeepDivePrompt(company){
+ const name=(company||"").trim()||"[Company Name]";
+ return `Act as a seasoned equity research analyst with 20 years of experience across fundamental analysis, technical analysis, and behavioral finance. I am providing you with the following documents for ${name}: annual financial statements, Management Discussion & Analysis, concall transcripts, a daily technical chart, key ratios from Screener, and the latest shareholding pattern.
+
+Tear this company apart across these dimensions:
+
+FUNDAMENTALS — Is this business genuinely healthy or just looks good on surface? Dig into revenue quality, margin trajectory, cash flow vs reported profits, debt structure, and ROE sustainability. Flag any accounting red flags.
+
+MANAGEMENT DNA — Read between the lines of the concall transcripts and MDA. Is management confident or defensive? Are they overpromising and underdelivering? Any change in language tone vs last year? Promoter pledge or stake reduction is an automatic red flag — call it out.
+
+VALUATION REALITY — Is the market pricing in perfection? Compare current P/E, EV/EBITDA against historical averages and sector peers. Tell me if I am paying a premium for growth that may never come.
+
+TECHNICAL STRUCTURE — Where is the stock in its trend cycle? Is it in accumulation, markup, distribution, or markdown phase? Key support and resistance levels. Is volume confirming price action or diverging?
+
+RISK FACTORS — What are the 3 things that could destroy this thesis? Sector risk, company-specific risk, macro risk.
+
+FINAL VERDICT — Buy, Hold, or Avoid. Conviction score out of 10. Price at which this becomes interesting if not now. One line that summarizes this stock.
+
+Do not give me a balanced, diplomatic answer. I want the truth — even if it is uncomfortable.
+
+IMPORTANT: Separate facts from assumptions, cite the supplied documents for material claims, and clearly flag any missing data instead of inventing it.`;
+}
+function openDeepDive(symbol){
+ const input=document.getElementById("deepDiveCompany");
+ if(input)input.value=symbol||"";
+ renderDeepDivePrompt();
+ document.getElementById("deepDive")?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderDeepDivePrompt(){
+ const input=document.getElementById("deepDiveCompany"),out=document.getElementById("deepDivePrompt");
+ if(input&&out)out.value=buildDeepDivePrompt(input.value);
+}
+async function copyDeepDivePrompt(){
+ const out=document.getElementById("deepDivePrompt");
+ if(!out)return;
+ try{
+  await navigator.clipboard.writeText(out.value);
+  setStatus("Deep Dive prompt copied • paste it into Claude/ChatGPT with the 6 documents.");
+ }catch{
+  out.select();document.execCommand("copy");
+  setStatus("Deep Dive prompt copied.");
+ }
+}
 function nowIST(){return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}))}
 function dateKey(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 const NSE_HOLIDAYS_2026={
@@ -182,7 +225,7 @@ function card(x,capital,risk){
  const riskAmt=Math.abs(Number(s.price)-Number(s.stop))*Number(s.quantity),reward=Math.abs(Number(s.target)-Number(s.price))*Number(s.quantity),rr=riskAmt>0?reward/riskAmt:0;
  return '<div class="stock"><div class="stocktop"><div><div class="sym">'+x.symbol+'</div><div class="tiny">'+money(s.price)+' • '+x.candleCount+' candles</div></div><div class="badge '+cls+'">'+s.signal+' • '+s.score+'/100</div></div>'+
  '<div class="tradeplan"><div><small>ENTRY</small><b>'+money(s.price)+'</b></div><div><small>STOP LOSS</small><b>'+money(s.stop)+'</b></div><div><small>TARGET</small><b>'+money(s.target)+'</b></div></div><div class="meta"><div><small>QTY</small><b>'+s.quantity+'</b></div><div><small>RISK</small><b>'+money(riskAmt)+'</b></div><div><small>R:R</small><b>1 : '+round2(rr)+'</b></div><div><small>RSI</small><b>'+round2(s.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+Number(s.volumeRatio).toFixed(1)+'×</b></div><div><small>VWAP</small><b>'+money(s.vwap)+'</b></div></div>'+
- '<div class="confidence"><i style="width:'+Math.min(100,Number(s.score))+'%"></i></div><div class="why"><b>💡 Why this setup?</b><span>'+((s.reasons||[]).join(' • ')||'Rules aligned')+'</span></div><div class="reason">'+(s.side==="LONG"?"Bullish":"Bearish")+' setup • score '+s.score+' • ATR '+round2(s.atr)+' • Candle: '+(s.candlestickPattern||"None")+'</div><div class="checks">'+['trend','vwap','momentum','volume','breakout','candlestick'].map(k=>'<span class="'+(s.checks?.[k]?'check-on':'check-off')+'">'+(s.checks?.[k]?'✓ ':'• ')+k.toUpperCase()+'</span>').join('')+'</div><div class="tiny" style="margin-top:7px">Confirmed: '+((s.reasons||[]).join(', ')||'none')+' • Candle pattern: '+(s.candlestickPattern||"None")+' • Capital '+money(capital)+' • planned risk '+risk+'% • estimated reward '+money(reward)+' • trading execution is disabled</div></div>';
+ '<div class="confidence"><i style="width:'+Math.min(100,Number(s.score))+'%"></i></div><div class="why"><b>💡 Why this setup?</b><span>'+((s.reasons||[]).join(' • ')||'Rules aligned')+'</span></div><div class="reason">'+(s.side==="LONG"?"Bullish":"Bearish")+' setup • score '+s.score+' • ATR '+round2(s.atr)+' • Candle: '+(s.candlestickPattern||"None")+'</div><div class="checks">'+['trend','vwap','momentum','volume','breakout','candlestick'].map(k=>'<span class="'+(s.checks?.[k]?'check-on':'check-off')+'">'+(s.checks?.[k]?'✓ ':'• ')+k.toUpperCase()+'</span>').join('')+'</div><button class="secondary deepbtn" onclick="openDeepDive(\''+x.symbol+'\')">🧠 Deep Dive Research</button><div class="tiny" style="margin-top:7px">Confirmed: '+((s.reasons||[]).join(', ')||'none')+' • Candle pattern: '+(s.candlestickPattern||"None")+' • Capital '+money(capital)+' • planned risk '+risk+'% • estimated reward '+money(reward)+' • trading execution is disabled</div></div>';
 }
 async function loadGrowwStatus(){
  try{
